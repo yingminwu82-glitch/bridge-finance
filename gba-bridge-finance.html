@@ -167,8 +167,8 @@
     .cta-card::after { position: absolute; top: -125px; right: 130px; width: 330px; height: 330px; content: ""; border: 1px solid rgba(255,255,255,.18); border-radius: 50%; box-shadow: 0 0 0 42px rgba(255,255,255,.06), 0 0 0 84px rgba(255,255,255,.035); }
     .cta-card h2 { position: relative; z-index: 1; max-width: 580px; margin: 0; font-size: 31px; }
     .cta-card p { position: relative; z-index: 1; margin: 9px 0 0; color: rgba(255,255,255,.78); font-size: 13px; }
-    .cta-card button { position: relative; z-index: 1; flex: 0 0 auto; padding: 14px 21px; border: 0; border-radius: 999px; color: var(--red); background: white; font-size: 13px; font-weight: 750; cursor: pointer; }
-    .cta-card button:hover { background: #fff3f1; }
+    .cta-card button, .cta-button { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; padding: 14px 21px; border: 0; border-radius: 999px; color: var(--red); background: white; font-size: 13px; font-weight: 750; cursor: pointer; }
+    .cta-card button:hover, .cta-button:hover { background: #fff3f1; }
     footer { padding: 25px 0 31px; border-top: 1px solid var(--line); color: #85898d; font-size: 11px; }
     .footer-inner { display: flex; justify-content: space-between; gap: 22px; }
     .disclaimer { max-width: 700px; line-height: 1.8; }
@@ -179,6 +179,54 @@
     .dialog-body h2 { margin: 0 0 9px; font-size: 23px; }
     .dialog-body p { color: var(--muted); font-size: 13px; line-height: 1.8; }
     .dialog-close { display: block; margin: 22px 0 0 auto; padding: 10px 17px; border: 0; border-radius: 999px; color: white; background: var(--red); font-size: 13px; cursor: pointer; }
+    .deep-dive { background: #fff; }
+    .topic-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .topic-card { display: flex; min-height: 190px; flex-direction: column; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); transition: transform .2s, box-shadow .2s; }
+    .topic-card:hover { transform: translateY(-3px); box-shadow: 0 15px 34px rgba(44,35,31,.08); }
+    .topic-card .topic-no { color: var(--red); font-size: 11px; font-weight: 800; letter-spacing: .1em; }
+    .topic-card strong { margin-top: 15px; font-size: 15px; }
+    .topic-card p { margin: 8px 0 18px; color: var(--muted); font-size: 12px; line-height: 1.75; }
+    .topic-card span:last-child { margin-top: auto; color: var(--red); font-size: 12px; font-weight: 750; }
+    .detail-section { border-top: 1px solid var(--line); }
+    .detail-section.alt { background: #f4f1ed; }
+    .detail-grid { display: grid; grid-template-columns: .75fr 1.25fr; gap: 60px; align-items: start; }
+    .detail-intro { position: sticky; top: 105px; }
+    .detail-intro p { color: var(--muted); font-size: 14px; line-height: 1.9; }
+    .detail-content { display: grid; gap: 15px; }
+    .detail-card { padding: 23px; border: 1px solid var(--line); border-radius: 16px; background: white; }
+    .detail-card h3 { margin: 0 0 10px; font-size: 15px; }
+    .detail-card p, .detail-card li { color: #666a6d; font-size: 13px; line-height: 1.85; }
+    .detail-card p { margin: 0; }
+    .detail-card ul { margin: 10px 0 0; padding-left: 20px; }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .pill { padding: 7px 10px; border-radius: 999px; color: #654e49; background: #f8efed; font-size: 11px; }
+    .comparison-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+    .comparison-item { padding: 15px; border-radius: 12px; background: #f8f6f3; }
+    .comparison-item strong { display: block; font-size: 12px; }
+    .comparison-item span { display: block; margin-top: 7px; color: var(--muted); font-size: 11px; line-height: 1.65; }
+    .process-list { display: grid; gap: 9px; }
+    .process-row { display: grid; grid-template-columns: 38px 1fr; gap: 13px; align-items: start; padding: 14px; border-radius: 12px; background: #f8f6f3; }
+    .process-row b { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%; color: var(--red); background: var(--red-soft); font-size: 11px; }
+    .process-row strong { display: block; font-size: 13px; }
+    .process-row span { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.7; }
+    .architecture { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+    .architecture span { padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; background: white; color: #4c5053; font-size: 11px; }
+    .architecture i { color: var(--red); font-size: 12px; font-style: normal; }
+    .case-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+    .case-step { padding: 14px; border-radius: 12px; background: #f8f6f3; }
+    .case-step small { color: var(--red); font-size: 10px; font-weight: 750; }
+    .case-step strong { display: block; margin-top: 7px; font-size: 12px; }
+    .case-step span { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.6; }
+    .roadmap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
+    .roadmap-card { padding: 21px; border: 1px solid var(--line); border-radius: 15px; background: white; }
+    .roadmap-card .period { color: var(--red); font-size: 11px; font-weight: 800; }
+    .roadmap-card h3 { margin: 10px 0 8px; font-size: 15px; }
+    .roadmap-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
+    .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px; }
+    .metric-tile { padding: 15px; border-radius: 12px; background: #f8f6f3; }
+    .metric-tile strong { display: block; font-size: 12px; }
+    .metric-tile span { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.65; }
+    .back-top { display: inline-flex; margin-top: 23px; color: var(--red); font-size: 12px; font-weight: 750; }
 
     @media (max-width: 850px) {
       .hero-grid { grid-template-columns: 1fr; gap: 25px; }
@@ -217,6 +265,12 @@
       .service-grid { gap: 8px; }
       .service-tile { padding: 14px; }
       .footer-inner { flex-direction: column; }
+      .topic-grid { grid-template-columns: 1fr 1fr; }
+      .detail-grid { grid-template-columns: 1fr; gap: 22px; }
+      .detail-intro { position: static; }
+      .comparison-grid { grid-template-columns: 1fr; }
+      .case-flow, .roadmap { grid-template-columns: 1fr 1fr; }
+      .metric-grid { grid-template-columns: 1fr 1fr; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
@@ -232,10 +286,11 @@
       </a>
       <div class="nav-links">
         <a href="#challenge">企业挑战</a>
-        <a href="#solution">解决方案</a>
-        <a href="#journey">服务流程</a>
+        <a href="#product-design">产品流程</a>
+        <a href="#technology">技术与治理</a>
+        <a href="#market-position">市场定位</a>
       </div>
-      <button class="nav-cta" type="button" data-open-dialog>了解概念原型 <span aria-hidden="true">↗</span></button>
+      <a class="nav-cta" href="#product-design">探索产品方案 <span aria-hidden="true">↗</span></a>
     </nav>
   </header>
 
@@ -353,10 +408,171 @@
       </div>
     </section>
 
+    <section class="content deep-dive" id="more">
+      <div class="wrap">
+        <div class="section-heading center">
+          <div class="eyebrow">EXPLORE THE PLATFORM</div>
+          <h2>从业务数据，到可解释的金融服务。</h2>
+          <p>根据最新方案，进一步了解产品如何工作、AI 如何受控，以及它在大湾区跨境交易中的价值。</p>
+        </div>
+        <div class="topic-grid">
+          <a class="topic-card" href="#product-design"><span class="topic-no">01 / PRODUCT</span><strong>产品与交易流程</strong><p>从企业授权、文件识别到交易链和融资预审。</p><span>查看产品设计 →</span></a>
+          <a class="topic-card" href="#technology"><span class="topic-no">02 / AI &amp; TRUST</span><strong>核心技术与治理</strong><p>了解 OCR、现金流预测、风险规则和人工审核边界。</p><span>查看技术架构 →</span></a>
+          <a class="topic-card" href="#market-position"><span class="topic-no">03 / POSITIONING</span><strong>市场定位与差异</strong><p>不是替代银行或支付工具，而是连接交易和金融服务。</p><span>查看定位分析 →</span></a>
+          <a class="topic-card" href="#case-study"><span class="topic-no">04 / USE CASE</span><strong>跨境交易案例</strong><p>通过示意交易了解币种与账期错配如何被识别。</p><span>查看案例 →</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="content detail-section" id="product-design">
+      <div class="detail-grid wrap">
+        <div class="detail-intro">
+          <div class="eyebrow">PRODUCT &amp; JOURNEY</div>
+          <h2>从真实交易开始，<br>而非从贷款表单开始。</h2>
+          <p>GBA Bridge Finance 是设想中嵌入 ICBC App 的跨境金融模块。平台先帮助企业看懂交易，再整理可能的资金需求和服务建议。</p>
+          <a class="back-top" href="#more">← 返回专题目录</a>
+        </div>
+        <div class="detail-content">
+          <article class="detail-card">
+            <h3>企业准入与授权</h3>
+            <p>企业建立数字档案，描述经营地区、客户与供应商分布、贸易规模、常用币种和付款收款模式。账户连接或资料使用应由企业明确授权；暂不连接账户时，也可以手动录入预计收付款安排。</p>
+            <div class="pill-row"><span class="pill">明确数据范围</span><span class="pill">说明使用目的</span><span class="pill">支持手动录入</span></div>
+          </article>
+          <article class="detail-card">
+            <h3>文件识别、标准化与交易链</h3>
+            <p>支持 PDF、扫描件、图片及 Excel 等常见业务材料。OCR 识别文字与字段，文档理解识别文件类型及业务含义，再统一形成 Buyer、Seller、Supplier、Amount、Currency、Date、Payment、Logistics 等交易字段。</p>
+            <div class="process-list" style="margin-top:14px">
+              <div class="process-row"><b>1</b><div><strong>采集贸易材料</strong><span>订单、销售/采购合同、发票、装箱单、提单、付款通知与应收账款信息。</span></div></div>
+              <div class="process-row"><b>2</b><div><strong>提取并核对字段</strong><span>对低置信度关键字段提示人工确认；不同地区、语言和格式映射至统一数据结构。</span></div></div>
+              <div class="process-row"><b>3</b><div><strong>建立交易关系</strong><span>将订单 → 合同 → 发票 → 物流 → 付款 → 应收账款串成可追溯交易链。</span></div></div>
+            </div>
+          </article>
+          <article class="detail-card">
+            <h3>完整性与风险分开呈现</h3>
+            <p>交易完整度回答“资料够不够”，风险提示回答“哪些事项值得复核”，两者不是银行信用评级，也不自动判断欺诈。系统可核对主体、金额、币种、日期、物流资料，并提示材料缺失或疑似重复融资。</p>
+            <div class="pill-row"><span class="pill">完整度示意：88 / 100</span><span class="pill">风险提示示意：Medium</span><span class="pill">需补充：物流文件</span></div>
+          </article>
+          <article class="detail-card">
+            <h3>资金预测、产品匹配与客户经理协同</h3>
+            <p>按币种和日期排列未来应收应付，并模拟客户延迟付款、供应商提前收款、订单变动和汇率变化。系统解释缺口的金额、时间、持续期限与成因，再按订单、采购、发货、应收和回款阶段整理潜在金融服务建议，生成预审报告供客户经理复核。</p>
+            <a class="back-top" href="#technology">继续查看技术与人工审核 →</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="content detail-section alt" id="technology">
+      <div class="detail-grid wrap">
+        <div class="detail-intro">
+          <div class="eyebrow">CORE TECHNOLOGY &amp; GOVERNANCE</div>
+          <h2>AI 负责辅助，<br>人和银行负责决策。</h2>
+          <p>系统以多种数据处理模块协同工作。重要结论需要给出原因和下一步，不把不可解释的分数当作决定。</p>
+          <a class="back-top" href="#more">← 返回专题目录</a>
+        </div>
+        <div class="detail-content">
+          <article class="detail-card">
+            <h3>核心分析链</h3>
+            <p>OCR 解决文件文字识别；文档理解识别交易语义；关系图谱把企业与订单、客户、供应商、物流、发票和付款关联起来。确定性规则负责可审计的风险核对，现金流模型分析未来资金时点，再由产品知识库支持服务建议。</p>
+            <div class="architecture" aria-label="系统分析流程">
+              <span>贸易资料</span><i>→</i><span>OCR / 文档理解</span><i>→</i><span>交易关系图谱</span><i>→</i><span>规则与现金流分析</span><i>→</i><span>服务建议</span><i>→</i><span>RM 复核</span>
+            </div>
+          </article>
+          <article class="detail-card">
+            <h3>风险可解释，关键事项可追溯</h3>
+            <p>建议展示 What（发现了什么）、Why（原因是什么）、What next（下一步做什么），而不只给一个分数。例如：“中风险；付款账户与历史不同且缺少物流资料；建议客户经理复核。”记录字段来源、风险规则、修改和审核轨迹，便于后续审计。</p>
+          </article>
+          <article class="detail-card">
+            <h3>数据安全与人工监督</h3>
+            <ul>
+              <li>按授权目的使用数据，遵循最小必要、加密、角色权限及保存期限管理。</li>
+              <li>高风险交易进入 Flag → Escalate → RM Review；方案提出高风险交易人工复核率应为 100%。</li>
+              <li>AI 不直接批准贷款、不自动调整授信额度，也不替代 KYC、AML、信用评估和正式审批。</li>
+              <li>客户经理可核对原始文件、修订提取结果、要求补件并确认是否进入银行正式流程。</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="content detail-section" id="market-position">
+      <div class="detail-grid wrap">
+        <div class="detail-intro">
+          <div class="eyebrow">MARKET POSITIONING</div>
+          <h2>不取代现有服务，<br>重点连接服务断点。</h2>
+          <p>方案针对的不是“市场没有金融产品”，而是交易资料、现金流判断与银行融资流程之间缺少衔接。</p>
+          <a class="back-top" href="#more">← 返回专题目录</a>
+        </div>
+        <div class="detail-content">
+          <article class="detail-card">
+            <h3>与常见方案的关系</h3>
+            <div class="comparison-grid">
+              <div class="comparison-item"><strong>传统银行融资</strong><span>产品与风控能力成熟；企业通常需要主动申请并自行准备、解释交易材料。</span></div>
+              <div class="comparison-item"><strong>跨境支付平台</strong><span>帮助完成收付、换汇和查询；一般不负责预测资金缺口或生成融资预审资料。</span></div>
+              <div class="comparison-item"><strong>财务管理软件</strong><span>帮助记录账目与现金流；通常不把贸易文件、物流关系和银行产品匹配整合在一起。</span></div>
+            </div>
+          </article>
+          <article class="detail-card">
+            <h3>湾区融桥的差异化定位</h3>
+            <p>作为企业经营活动与银行正式授信流程之间的前置协同层，平台以真实贸易关系为基础，连接香港海外客户、香港企业、大湾区供应商与物流履约，提前识别跨币种、跨地区、跨账期的资金需求，并把分析交给客户经理进行人工核实。</p>
+            <div class="pill-row"><span class="pill">真实交易</span><span class="pill">主动预警</span><span class="pill">港澳与湾区供应链</span><span class="pill">融资 + 结算 + 外汇 + 担保</span></div>
+          </article>
+          <a class="back-top" href="#case-study">通过示意案例了解业务流程 →</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="content detail-section alt" id="case-study">
+      <div class="wrap">
+        <div class="section-heading">
+          <div class="eyebrow">ILLUSTRATIVE CROSS-BORDER CASE</div>
+          <h2>一笔订单，三种币种，<br>提前看见时间差。</h2>
+          <p>以下为项目文档中的假设性示意案例，不代表任何企业的真实交易或实际融资结果。</p>
+        </div>
+        <article class="detail-card">
+          <h3>假设：香港供应链企业服务海外客户</h3>
+          <p>企业接到一笔 USD 5 million 海外订单，计划向大湾区供应商支付 CNY 30 million；客户预计在供应商付款后约 70 天回款。企业还需以 HKD 支付本地日常运营费用。</p>
+          <div class="case-flow">
+            <div class="case-step"><small>01 · 上传</small><strong>订单与合同</strong><span>海外客户订单、销售合同、内地采购合同。</span></div>
+            <div class="case-step"><small>02 · 关联</small><strong>发票与物流</strong><span>将供应商发票、装运资料和付款计划对应到交易。</span></div>
+            <div class="case-step"><small>03 · 预测</small><strong>识别币种与账期</strong><span>CNY 支出早于 USD 回款；同时查看 HKD 运营支出。</span></div>
+            <div class="case-step"><small>04 · 复核</small><strong>建议交由客户经理</strong><span>解释资金需求和待核资料，不表示获得融资批准。</span></div>
+          </div>
+          <div class="pill-row"><span class="pill">CNY 采购支出</span><span class="pill">USD 海外回款</span><span class="pill">HKD 本地运营</span><span class="pill">所有数字均为示意</span></div>
+        </article>
+        <a class="back-top" href="#roadmap">查看分阶段实施与评估 →</a>
+      </div>
+    </section>
+
+    <section class="content detail-section" id="roadmap">
+      <div class="wrap">
+        <div class="section-heading center">
+          <div class="eyebrow">IMPLEMENTATION &amp; MEASUREMENT</div>
+          <h2>先受控试点，再逐步扩展。</h2>
+          <p>项目文档提出分阶段建设。具体目标应在试点建立基线后，依据真实数据校准。</p>
+        </div>
+        <div class="roadmap">
+          <article class="roadmap-card"><span class="period">第 1 阶段 · 0–6 个月</span><h3>内部开发与受控试点</h3><p>建设数据标准、OCR 与文档理解、交易关系图谱、多币种现金流、风险规则、产品知识库和客户经理后台；在授权和受控范围内验证端到端流程。</p></article>
+          <article class="roadmap-card"><span class="period">第 2 阶段 · 6–12 个月</span><h3>有限市场推广</h3><p>扩展企业样本与采购融资、应收账款、外汇和跨境结算场景；收集企业及客户经理反馈，调整推荐相关性和风险提示。</p></article>
+          <article class="roadmap-card"><span class="period">第 3 阶段 · 12–24 个月</span><h3>规模化与体系整合</h3><p>在前期指标达标后，逐步整合 ICBC App、客户经理工作流程及更广泛的跨境服务生态。</p></article>
+        </div>
+        <article class="detail-card" style="margin-top:15px">
+          <h3>评估不只看用户数量</h3>
+          <p>先建立 Baseline，再根据试点数据调整目标。建议同时评估效率、数据准确性、业务效果、用户采用和风险治理；效率提升示例不是实际测试结果。</p>
+          <div class="metric-grid">
+            <div class="metric-tile"><strong>处理效率</strong><span>单笔资料整理时间、重复提交减少。</span></div>
+            <div class="metric-tile"><strong>数据质量</strong><span>OCR 关键字段、文档理解与交易关联准确性。</span></div>
+            <div class="metric-tile"><strong>业务效果</strong><span>资金需求提前识别时间、产品建议相关性。</span></div>
+            <div class="metric-tile"><strong>治理与采用</strong><span>持续使用情况、高风险人工复核、审计与安全事件。</span></div>
+          </div>
+        </article>
+        <a class="back-top" href="#home">↑ 返回页面顶部</a>
+      </div>
+    </section>
+
     <section class="cta-band">
       <div class="cta-card wrap">
         <div><h2>让交易信息连接资金，<br>让金融服务跟上生意。</h2><p>湾区融桥 · 大湾区跨境中小企业金融服务概念原型</p></div>
-        <button type="button" data-open-dialog>查看原型说明 <span aria-hidden="true">↗</span></button>
+        <a class="cta-button" href="#more">继续探索方案 <span aria-hidden="true">↗</span></a>
       </div>
     </section>
   </main>
@@ -368,23 +584,5 @@
     </div>
   </footer>
 
-  <dialog id="prototype-dialog" aria-labelledby="dialog-title">
-    <div class="dialog-body">
-      <div class="eyebrow">PROTOTYPE NOTE</div>
-      <h2 id="dialog-title">这是一个概念原型</h2>
-      <p>页面根据附件中的 GBA Bridge Finance 项目方案整理，用于展示服务定位、企业痛点与概念流程。当前不连接真实银行系统，也不收集或提交任何个人、企业或交易信息。</p>
-      <button class="dialog-close" type="button" data-close-dialog>知道了</button>
-    </div>
-  </dialog>
-  <script>
-    const prototypeDialog = document.querySelector("#prototype-dialog");
-    document.querySelectorAll("[data-open-dialog]").forEach((button) => {
-      button.addEventListener("click", () => prototypeDialog.showModal());
-    });
-    document.querySelector("[data-close-dialog]").addEventListener("click", () => prototypeDialog.close());
-    prototypeDialog.addEventListener("click", (event) => {
-      if (event.target === prototypeDialog) prototypeDialog.close();
-    });
-  </script>
 </body>
 </html>
