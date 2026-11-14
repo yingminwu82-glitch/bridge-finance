@@ -54,12 +54,18 @@ SessionLocal = None
 def get_db():
     global engine, SessionLocal
     if engine is None:
-        engine = init_db(DB_PATH)
-        SessionLocal = get_session_maker(engine)
-        # Seed database
-        with SessionLocal() as session:
-            seed_database(session)
-            logger.info("Database initialized and seeded.")
+        try:
+            engine = init_db(DB_PATH)
+            SessionLocal = get_session_maker(engine)
+            # Seed database
+            with SessionLocal() as session:
+                seed_database(session)
+                logger.info("Database initialized and seeded.")
+        except Exception as e:
+            logger.error(f"Database init/seed failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise
     db = SessionLocal()
     try:
         yield db
