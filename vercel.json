@@ -1,8 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/.next",
-  "installCommand": "cd frontend && npm install",
   "functions": {
     "api/index.py": {
       "excludeFiles": "frontend/**,docs/**,index.html,gba-bridge-finance.html"
