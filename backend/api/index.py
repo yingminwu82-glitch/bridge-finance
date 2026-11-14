@@ -7,6 +7,7 @@ relative to this file.
 """
 import sys
 import os
+import traceback
 
 # Add app source directory to Python path
 app_dir = os.path.join(os.path.dirname(__file__), "..")
@@ -19,5 +20,29 @@ os.environ["UPLOAD_DIR"] = "/tmp/uploads"
 
 # Import the FastAPI app
 from app.main import app  # noqa: E402
+
+# Diagnostic endpoint to capture seed errors at runtime
+from fastapi import FastAPI
+from starlette.routing import Route
+
+@app.get("/api/debug")
+async def debug_info():
+    import platform
+    info = {"python": platform.python_version(), "vercel": os.environ.get("VERCEL")}
+    # Test DB init
+    try:
+        from app.models import init_db, get_session_maker, Enterprise
+        from app.seed import seed_database
+        engine = init_db("sqlite:///:memory:")
+        SL = get_session_maker(engine)
+        with SL() as s:
+            seed_database(s)
+            s.commit()
+            info["enterprises"] = s.query(Enterprise).count()
+            info["db_status"] = "OK"
+    except Exception as e:
+        info["db_error"] = str(e)
+        info["db_traceback"] = traceback.format_exc()
+    return info
 
 # Vercel Python runtime expects an ASGI app named `app`

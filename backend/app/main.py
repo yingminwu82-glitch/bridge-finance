@@ -57,9 +57,10 @@ def get_db():
         try:
             engine = init_db(DB_PATH)
             SessionLocal = get_session_maker(engine)
-            # Seed database
+            # Seed database and commit
             with SessionLocal() as session:
                 seed_database(session)
+                session.commit()
                 logger.info("Database initialized and seeded.")
         except Exception as e:
             logger.error(f"Database init/seed failed: {e}")
