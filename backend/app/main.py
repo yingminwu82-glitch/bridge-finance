@@ -61,7 +61,7 @@ def get_db():
             with SessionLocal() as session:
                 seed_database(session)
                 session.commit()
-                logger.info("Database initialized and seeded.")
+                logger.info(f"Database initialized and seeded. DB_PATH={DB_PATH}")
         except Exception as e:
             logger.error(f"Database init/seed failed: {e}")
             import traceback
