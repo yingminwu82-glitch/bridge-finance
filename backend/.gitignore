@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.pyo
+gba_bridge_finance.db
+gba_bridge_finance.db-journal
+uploads/
+.vercel/
+.env
+.env.local

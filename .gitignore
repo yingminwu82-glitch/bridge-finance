@@ -14,8 +14,6 @@ env/
 # SQLite database (auto-generated on startup)
 backend/gba_bridge_finance.db
 backend/gba_bridge_finance.db-journal
-frontend/backend/gba_bridge_finance.db
-frontend/backend/gba_bridge_finance.db-journal
 
 # Uploads (user-generated)
 backend/uploads/
