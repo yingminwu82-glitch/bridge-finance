@@ -318,7 +318,16 @@ DB_PATH = _os.environ.get("GBA_DB_PATH", "sqlite:///./gba_bridge_finance.db")
 def get_engine(db_path=None):
     path = db_path or DB_PATH
     if path == ":memory:" or "sqlite:///:memory:" in path:
-        return create_engine("sqlite:///:memory:", echo=False, connect_args={"check_same_thread": False})
+        # For in-memory SQLite, use StaticPool to share a single connection
+        # across all sessions — otherwise tables created by create_all
+        # won't be visible to sessions using a different connection.
+        from sqlalchemy.pool import StaticPool
+        return create_engine(
+            "sqlite:///:memory:",
+            echo=False,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
     return create_engine(path, echo=False, connect_args={"check_same_thread": False})
 
 def get_session_maker(engine):

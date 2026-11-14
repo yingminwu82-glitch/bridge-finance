@@ -7,6 +7,7 @@ relative to this file.
 """
 import sys
 import os
+import traceback
 
 # Add app source directory to Python path
 app_dir = os.path.join(os.path.dirname(__file__), "..")
@@ -19,5 +20,27 @@ os.environ["UPLOAD_DIR"] = "/tmp/uploads"
 
 # Import the FastAPI app
 from app.main import app  # noqa: E402
+
+# Add middleware to capture and return errors as JSON for debugging
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
+
+class ErrorCaptureMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        try:
+            response = await call_next(request)
+            return response
+        except Exception as e:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": str(e),
+                    "type": type(e).__name__,
+                    "traceback": traceback.format_exc(),
+                    "path": str(request.url),
+                },
+            )
+
+app.add_middleware(ErrorCaptureMiddleware)
 
 # Vercel Python runtime expects an ASGI app named `app`

@@ -66,7 +66,7 @@ def get_db():
             logger.error(f"Database init/seed failed: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            raise
+            raise HTTPException(status_code=500, detail=f"DB init failed: {e}")
     db = SessionLocal()
     try:
         yield db
