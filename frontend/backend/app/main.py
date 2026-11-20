@@ -857,12 +857,14 @@ async def forecast_cashflow(transaction_id: int, horizon_days: int = 90,
     cf_dicts = [{
         "flow_type": c.flow_type,
         "description": c.description,
+        "description_code": c.description_code,
+        "description_params": c.description_params,
         "currency": c.currency,
         "amount": c.amount,
         "flow_date": c.flow_date,
     } for c in cashflows]
 
-    entries = build_entries(cf_dicts, tx)
+    entries = build_entries(cf_dicts, tx, lang)
     forecast = build_forecast(entries, horizon_days=horizon_days)
     products = db.query(Product).all()
 
@@ -919,12 +921,14 @@ async def simulate_financial_product(payload: ProductSimulationRequest,
     cf_dicts = [{
         "flow_type": c.flow_type,
         "description": c.description,
+        "description_code": c.description_code,
+        "description_params": c.description_params,
         "currency": c.currency,
         "amount": c.amount,
         "flow_date": c.flow_date,
     } for c in cashflows]
 
-    entries = build_entries(cf_dicts, tx)
+    entries = build_entries(cf_dicts, tx, payload.lang)
     forecast = build_forecast(entries, horizon_days=payload.horizon_days)
 
     recommendation = db.query(Recommendation).filter(
@@ -980,6 +984,8 @@ async def simulate_scenarios(transaction_id: int,
     cf_dicts = [{
         "flow_type": c.flow_type,
         "description": c.description,
+        "description_code": c.description_code,
+        "description_params": c.description_params,
         "currency": c.currency,
         "amount": c.amount,
         "flow_date": c.flow_date,

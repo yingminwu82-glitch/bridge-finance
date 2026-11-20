@@ -17,6 +17,7 @@ Design notes
 - FX hedging adjusts the converted value of the hedged cash flow; the notional
   itself is never added as a cash inflow.
 """
+import json
 import math
 from collections import defaultdict
 from datetime import date, timedelta, datetime
@@ -126,7 +127,86 @@ def categorize(description: str) -> str:
     return "OTHER"
 
 
-def build_entries(cashflow_items: List[Dict], transaction=None) -> List[Dict]:
+ENTRY_LABELS = {
+    "supplier_payment": {"zh-CN": "供应商付款", "zh-TW": "供應商付款", "en": "Supplier Payment"},
+    "customer_collection": {"zh-CN": "客户回款", "zh-TW": "客戶回款", "en": "Customer Collection"},
+    "logistics_freight": {"zh-CN": "物流及运费", "zh-TW": "物流及運費", "en": "Logistics & Freight"},
+    "operating_expenses": {"zh-CN": "运营费用", "zh-TW": "運營費用", "en": "Operating Expenses"},
+    "customs_duties": {"zh-CN": "关税及港杂费", "zh-TW": "關稅及港雜費", "en": "Customs Duties & Port Charges"},
+}
+
+DETAIL_LABELS = {
+    "previous_batch": {"zh-CN": "上期批次", "zh-TW": "上期批次", "en": "previous batch"},
+    "q4_production": {"zh-CN": "Q4 生产", "zh-TW": "Q4 生產", "en": "Q4 production"},
+    "production_batch": {"zh-CN": "生产批次", "zh-TW": "生產批次", "en": "production batch"},
+    "warehouse_payroll": {"zh-CN": "仓储及薪资", "zh-TW": "倉儲及薪資", "en": "warehouse & payroll"},
+    "monthly_paid": {"zh-CN": "月度已支付", "zh-TW": "月度已支付", "en": "monthly, paid"},
+    "monthly": {"zh-CN": "月度", "zh-TW": "月度", "en": "monthly"},
+    "phase_1": {"zh-CN": "第一期", "zh-TW": "第一期", "en": "phase 1"},
+    "phase_2": {"zh-CN": "第二期", "zh-TW": "第二期", "en": "phase 2"},
+}
+
+ROUTE_LABELS = {
+    "sz_us": {"zh-CN": "深圳 → 美国", "zh-TW": "深圳 → 美國", "en": "Shenzhen → US"},
+    "dg_us": {"zh-CN": "东莞 → 美国", "zh-TW": "東莞 → 美國", "en": "Dongguan → US"},
+}
+
+COUNTERPARTY_LABELS = {
+    "shenzhen abc": {"zh-CN": "深圳 ABC", "zh-TW": "深圳 ABC", "en": "Shenzhen ABC"},
+    "component supplier": {"zh-CN": "零部件供应商", "zh-TW": "零部件供應商", "en": "Component Supplier"},
+    "dongguan xyz": {"zh-CN": "东莞 XYZ", "zh-TW": "東莞 XYZ", "en": "Dongguan XYZ"},
+}
+
+
+def _counterparty(name: str, lang: str) -> str:
+    labels = COUNTERPARTY_LABELS.get((name or "").strip().lower())
+    return _label(labels, lang) if labels else name
+
+
+def _wrap_label(lang: str, label: str, inner: str) -> str:
+    if not inner:
+        return label
+    return f"{label}（{inner}）" if lang in ("zh-CN", "zh-TW") else f"{label} ({inner})"
+
+
+def localize_entry_description(code, params, lang: str, fallback: str = "") -> str:
+    """Render a cash-flow item description from its stable code + params."""
+    lang = _norm_lang(lang)
+    if not code:
+        return fallback
+    if isinstance(params, str):
+        try:
+            params = json.loads(params)
+        except (TypeError, ValueError):
+            params = {}
+    params = params or {}
+    label = _label(ENTRY_LABELS.get(code, {}), lang)
+    if not label:
+        return fallback
+
+    if code == "customs_duties":
+        return label
+    if code == "supplier_payment":
+        detail = _label(DETAIL_LABELS.get(params.get("detail"), {}), lang)
+        inner = " · ".join([x for x in (_counterparty(params.get("counterparty", ""), lang), detail) if x])
+        return _wrap_label(lang, label, inner)
+    if code == "customer_collection":
+        parts = [_counterparty(params.get("counterparty", ""), lang)]
+        if params.get("tranche"):
+            tranche = f"第 {params['tranche']} 期" if lang in ("zh-CN", "zh-TW") else f"tranche {params['tranche']}"
+            parts.append(tranche)
+        return _wrap_label(lang, label, " · ".join([x for x in parts if x]))
+    if code == "logistics_freight":
+        route = _label(ROUTE_LABELS.get(params.get("route"), {}), lang)
+        return _wrap_label(lang, label, route)
+    if code == "operating_expenses":
+        detail = _label(DETAIL_LABELS.get(params.get("detail"), {}), lang)
+        return _wrap_label(lang, label, detail)
+    return label
+
+
+def build_entries(cashflow_items: List[Dict], transaction=None,
+                  lang: str = "zh-CN") -> List[Dict]:
     """Normalize existing cash-flow records into signed forecast entries.
 
     Records come from the `cashflow_items` table. If the transaction carries a
@@ -136,7 +216,8 @@ def build_entries(cashflow_items: List[Dict], transaction=None) -> List[Dict]:
     entries: List[Dict] = []
     seen = set()
 
-    def add(flow_date, flow_type, description, currency, amount, source, status):
+    def add(flow_date, flow_type, description, currency, amount, source, status,
+            code=None, params=None):
         flow_date = _as_date(flow_date)
         if not flow_date:
             return
@@ -151,7 +232,10 @@ def build_entries(cashflow_items: List[Dict], transaction=None) -> List[Dict]:
             "date": flow_date.isoformat(),
             "type": flow_type,
             "category": categorize(description),
-            "description": description,
+            "description": localize_entry_description(code, params, lang, description),
+            "description_raw": description,
+            "description_code": code,
+            "description_params": params or {},
             "currency": currency,
             "amount": abs(amount),
             "signed_amount": abs(amount) if flow_type == "inflow" else -abs(amount),
@@ -162,7 +246,8 @@ def build_entries(cashflow_items: List[Dict], transaction=None) -> List[Dict]:
 
     for item in cashflow_items:
         add(item.get("flow_date"), item.get("flow_type"), item.get("description"),
-            item.get("currency"), item.get("amount"), "cashflow_item", "committed")
+            item.get("currency"), item.get("amount"), "cashflow_item", "committed",
+            code=item.get("description_code"), params=item.get("description_params"))
 
     if transaction:
         has_inflow = any(e["type"] == "inflow" for e in entries)
@@ -183,13 +268,17 @@ def build_entries(cashflow_items: List[Dict], transaction=None) -> List[Dict]:
             add(infos["expected_collection_date"], "inflow",
                 f"Customer Collection ({infos.get('buyer', 'buyer')})",
                 infos.get("order_currency") or BASE_CURRENCY,
-                infos.get("order_amount"), "transaction", "forecast")
+                infos.get("order_amount"), "transaction", "forecast",
+                code="customer_collection",
+                params={"counterparty": infos.get("buyer", "buyer")})
         if (not has_outflow and infos.get("payment_date")
                 and infos.get("invoice_amount")):
             add(infos["payment_date"], "outflow",
                 f"Supplier Payment ({infos.get('supplier', 'supplier')})",
                 infos.get("invoice_currency") or BASE_CURRENCY,
-                infos.get("invoice_amount"), "transaction", "forecast")
+                infos.get("invoice_amount"), "transaction", "forecast",
+                code="supplier_payment",
+                params={"counterparty": infos.get("supplier", "supplier")})
 
     entries.sort(key=lambda e: e["date"])
     return entries

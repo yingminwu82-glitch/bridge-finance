@@ -187,6 +187,8 @@ class CashflowItem(Base):
     enterprise_id = Column(Integer, ForeignKey("enterprises.id"), nullable=False)
     flow_type = Column(String(30))  # inflow, outflow
     description = Column(String(200))
+    description_code = Column(String(50))  # stable key for i18n
+    description_params = Column(JSON)  # template parameters
     currency = Column(String(10))
     amount = Column(Float)
     flow_date = Column(Date)
