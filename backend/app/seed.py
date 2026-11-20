@@ -893,55 +893,60 @@ def seed_database(session: Session):
     session.flush()
 
     # ─── Create Recommendations ───
-    # Transaction A recommendations
-    recs_a = [
-        (1, "Order", "The enterprise has a confirmed overseas order (USD 500K) but needs to pay the GBA supplier in CNY within 15 days. Trade/Order Financing can bridge the gap between supplier payment and customer collection.", 3600000, "CNY", 66, "Supplier procurement payment", ["Purchase Order", "Sales Contract", "Supplier Contract", "Payment Schedule"], "TF001: ICBC Trade Finance provides short-term working capital for confirmed cross-border orders.", 0.92, tx_a.id),
-        (2, "Procurement", "The enterprise needs to make a CNY payment to a Shenzhen supplier. Cross-border RMB Settlement supports this payment efficiently.", 3600000, "CNY", 1, "Supplier payment settlement", ["Purchase Contract", "Commercial Invoice", "Payment Notice"], "CBR002: ICBC Cross-border RMB Settlement enables CNY payments to Mainland suppliers.", 0.95, tx_a.id),
-        (3, "Receivable", "Goods have been shipped but the overseas customer will pay in 75 days. Receivables Finance can provide liquidity against the USD receivable.", 400000, "USD", 75, "Bridging receivable period", ["Commercial Invoice", "Bill of Lading", "Sales Contract"], "RF003: ICBC Receivables Finance provides liquidity by financing outstanding receivables from overseas customers.", 0.88, tx_a.id),
-        (4, "Receivable", "The enterprise has USD receivables and CNY payables, creating FX exposure. FX Settlement / Risk Management can hedge this exposure.", 500000, "USD", 75, "FX risk hedging", ["Transaction Analysis Report", "Cash Flow Forecast"], "FX004: ICBC FX Settlement and Risk Management helps manage currency exposure from cross-border trade.", 0.90, tx_a.id),
-    ]
-    for pid, stage, reason, amt, curr, tenor, use, mats, ref, conf, tid in recs_a:
-        rec = Recommendation(
-            product_id=pid,
-            transaction_stage=stage,
-            reason=reason,
-            estimated_amount=amt,
-            estimated_currency=curr,
-            estimated_tenor_days=tenor,
-            use_of_funds=use,
-            required_materials=mats,
-            knowledge_reference=ref,
-            confidence=conf,
-            transaction_id=tid,
-            enterprise_id=1,
-            status="pending",
-        )
-        session.add(rec)
+    # Generated with the same matching engine used by the API so the seeded
+    # recommendations stay in sync with the current product catalog.
+    from app.services.product_matcher import match_products
 
-    # Transaction B recommendations
-    recs_b = [
-        (1, "Order", "Large confirmed overseas order (USD 5M) with CNY 30M supplier payment required. Trade/Order Financing can bridge the 70-day gap.", 30000000, "CNY", 70, "Supplier procurement payment", ["Purchase Order", "Sales Contract", "Supplier Contract", "Payment Schedule"], "TF001: ICBC Trade Finance for large cross-border orders with confirmed trade background.", 0.95, tx_b.id),
-        (2, "Procurement", "CNY 30M payment to Dongguan supplier. Cross-border RMB Settlement for large-amount supplier payment.", 30000000, "CNY", 1, "Supplier payment settlement", ["Purchase Contract", "Commercial Invoice", "Payment Notice"], "CBR002: ICBC Cross-border RMB Settlement for large CNY payments to Mainland suppliers.", 0.96, tx_b.id),
-        (3, "Receivable", "Goods shipped, USD 5M receivable due in 70 days. Receivables Finance against the large USD receivable.", 4000000, "USD", 70, "Bridging receivable period", ["Commercial Invoice", "Bill of Lading", "Sales Contract"], "RF003: ICBC Receivables Finance for large USD receivables from overseas customers.", 0.90, tx_b.id),
-        (4, "Receivable", "Significant FX exposure: CNY 30M outflow vs USD 5M inflow. FX risk management essential for this large exposure.", 5000000, "USD", 70, "FX risk hedging for large exposure", ["Transaction Analysis Report", "Cash Flow Forecast"], "FX004: ICBC FX Risk Management for large multi-currency exposure in cross-border trade.", 0.93, tx_b.id),
-    ]
-    for pid, stage, reason, amt, curr, tenor, use, mats, ref, conf, tid in recs_b:
-        rec = Recommendation(
-            product_id=pid,
-            transaction_stage=stage,
-            reason=reason,
-            estimated_amount=amt,
-            estimated_currency=curr,
-            estimated_tenor_days=tenor,
-            use_of_funds=use,
-            required_materials=mats,
-            knowledge_reference=ref,
-            confidence=conf,
-            transaction_id=tid,
-            enterprise_id=1,
-            status="pending",
-        )
-        session.add(rec)
+    product_dicts = [{
+        "id": p.id,
+        "product_code": p.product_code,
+        "product_name": p.product_name,
+        "product_name_cn": p.product_name_cn,
+        "product_name_tw": p.product_name_tw,
+        "category": p.category,
+        "description": p.description,
+        "applicable_stages": p.applicable_stages,
+        "required_materials": p.required_materials,
+        "knowledge_base_entry": p.knowledge_base_entry,
+    } for p in products]
+
+    def _seed_recommendations(tx, funding_gap):
+        tx_dict = {
+            "order_currency": tx.order_currency,
+            "invoice_currency": tx.invoice_currency,
+            "order_amount": tx.order_amount,
+            "invoice_amount": tx.invoice_amount,
+            "logistics_status": tx.logistics_status,
+            "expected_collection_date": tx.expected_collection_date,
+            "payment_date": tx.payment_date,
+            "order_date": tx.order_date,
+        }
+        fg_dict = None
+        if funding_gap is not None:
+            fg_dict = {"gaps": [{
+                "gap_amount": funding_gap.gap_amount,
+                "gap_currency": funding_gap.gap_currency,
+                "gap_duration_days": funding_gap.gap_duration_days,
+            }]}
+        for rec in match_products(tx_dict, product_dicts, fg_dict, lang="zh-CN"):
+            session.add(Recommendation(
+                product_id=rec["product_id"],
+                transaction_stage=rec["transaction_stage"],
+                reason=rec["reason"],
+                estimated_amount=rec["estimated_amount"],
+                estimated_currency=rec["estimated_currency"],
+                estimated_tenor_days=rec["estimated_tenor_days"],
+                use_of_funds=rec["use_of_funds"],
+                required_materials=rec["required_materials"],
+                knowledge_reference=rec["knowledge_reference"],
+                confidence=rec["confidence"],
+                transaction_id=tx.id,
+                enterprise_id=1,
+                status="pending",
+            ))
+
+    _seed_recommendations(tx_a, fg_a)
+    _seed_recommendations(tx_b, fg_b)
     session.flush()
 
     # ─── Create Monitoring Events ───
