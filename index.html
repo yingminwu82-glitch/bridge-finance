@@ -140,6 +140,13 @@
     .solution-list { display: grid; gap: 13px; margin-top: 26px; }
     .solution-list div { display: flex; align-items: center; gap: 12px; color: #464a4d; font-size: 13px; }
     .check { display: grid; width: 22px; height: 22px; flex: 0 0 22px; place-items: center; border-radius: 50%; background: #e3eee9; color: var(--green); font-size: 12px; font-weight: 800; }
+    .mapping-section { background: #fff; }
+    .mapping-grid { display: grid; grid-template-columns: 1fr 1.1fr 1fr; gap: 1px; border-radius: 16px; overflow: hidden; background: var(--line); margin-top: 14px; }
+    .mapping-row { display: contents; }
+    .mapping-cell { padding: 18px 20px; background: white; }
+    .mapping-row.header .mapping-cell { background: #f8f6f3; font-weight: 700; font-size: 12px; color: #575b5e; }
+    .mapping-cell strong { display: block; font-size: 14px; margin-bottom: 6px; }
+    .mapping-cell p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
     .service-panel { padding: 28px; border: 1px solid rgba(255,255,255,.8); border-radius: 20px; background: rgba(255,255,255,.76); box-shadow: 0 18px 50px rgba(40,34,30,.06); }
     .service-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 19px; }
     .service-panel-head strong { font-size: 14px; }
@@ -271,6 +278,11 @@
       .comparison-grid { grid-template-columns: 1fr; }
       .case-flow, .roadmap { grid-template-columns: 1fr 1fr; }
       .metric-grid { grid-template-columns: 1fr 1fr; }
+      .mapping-grid { display: flex; flex-direction: column; gap: 12px; background: transparent; }
+      .mapping-row { display: block; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: white; }
+      .mapping-row.header { display: none; }
+      .mapping-cell { border-bottom: 1px solid var(--line); }
+      .mapping-cell:last-child { border-bottom: 0; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
@@ -344,24 +356,34 @@
       <div class="wrap">
         <div class="section-heading">
           <div class="eyebrow">SME CROSS-BORDER REALITY</div>
-          <h2>跨境业务在增长，<br>资金管理却更复杂。</h2>
-          <p>对中小企业而言，一笔订单背后往往同时涉及多个市场、多种货币和不同账期。信息看不全，资金就难安排。</p>
+          <h2>跨境中小企业需要的<br>不只是“更容易贷款”。</h2>
+          <p>融资难往往是结果。真正让资金难以及时到位的是：交易信息分散、财务视图不完整、收付时间错配、多币种敞口，以及跨境制度与系统协同困难。</p>
         </div>
         <div class="pain-grid">
           <article class="pain-card">
-            <div class="icon-box" aria-hidden="true">⇄</div>
-            <h3>收付账期错配</h3>
-            <p>先向供应商付款，后从海外客户收款，订单在手也可能出现 30–60 天的周转缺口。</p>
-          </article>
-          <article class="pain-card">
             <div class="icon-box" aria-hidden="true">▤</div>
-            <h3>交易资料分散</h3>
-            <p>合同、订单、发票、物流和流水散落在不同系统，难以形成清晰、可核验的经营全貌。</p>
+            <h3>交易信息碎片化</h3>
+            <p>订单、合同、发票、物流、付款记录分散在不同文件和系统中，缺乏统一标准，银行难以快速建立完整经营视图。</p>
           </article>
           <article class="pain-card">
-            <div class="icon-box" aria-hidden="true">￥</div>
-            <h3>多币种与汇率不确定</h3>
-            <p>人民币、港币与外币的收付款安排相互影响，汇率变化也会改变实际成本和现金流。</p>
+            <div class="icon-box" aria-hidden="true">⊙</div>
+            <h3>财务信息不透明</h3>
+            <p>部分中小企业缺少规范财务报表，经营记录与个人财务可能交织，金融机构难以准确判断信用与融资需求。</p>
+          </article>
+          <article class="pain-card">
+            <div class="icon-box" aria-hidden="true">⇄</div>
+            <h3>收付款时间错配</h3>
+            <p>需先向内地供应商支付人民币，再收到海外客户的美元或港币货款。即使订单真实，也可能出现短期营运资金缺口。</p>
+          </article>
+          <article class="pain-card">
+            <div class="icon-box" aria-hidden="true">¤</div>
+            <h3>多币种与汇率风险</h3>
+            <p>同时处理 RMB、HKD、USD 等货币，汇率变化与结算币种选择会影响实际现金流，增加资金预测难度。</p>
+          </article>
+          <article class="pain-card">
+            <div class="icon-box" aria-hidden="true">⌁</div>
+            <h3>跨境制度与信息协同困难</h3>
+            <p>香港与内地金融监管、业务习惯、信息系统和文件标准不同，跨境资料核对与金融服务协同更加复杂。</p>
           </article>
         </div>
       </div>
@@ -387,6 +409,53 @@
             <div class="service-tile"><span class="tile-icon" aria-hidden="true">⇄</span><strong>跨境结算</strong><small>支持交易收付与结算服务衔接</small></div>
             <div class="service-tile"><span class="tile-icon" aria-hidden="true">◉</span><strong>外汇管理</strong><small>关注币种敞口与汇率风险提示</small></div>
             <div class="service-tile"><span class="tile-icon" aria-hidden="true">◇</span><strong>保理与保函</strong><small>提供与贸易场景相关的服务入口</small></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="content mapping-section" id="mapping">
+      <div class="wrap">
+        <div class="section-heading">
+          <div class="eyebrow">PROBLEM TO SOLUTION</div>
+          <h2>每个问题，都对应一个产品回应。</h2>
+          <p>场景一中提出的痛点，不是用于渲染困难，而是后续产品功能的输入。下表说明湾区融桥如何把信息与资金问题转化为可执行的服务能力。</p>
+        </div>
+        <div class="mapping-grid" role="table" aria-label="痛点与产品功能对应关系">
+          <div class="mapping-row header" role="row">
+            <div class="mapping-cell" role="columnheader">场景一提出的问题</div>
+            <div class="mapping-cell" role="columnheader">后续产品对应功能</div>
+            <div class="mapping-cell" role="columnheader">产品解决方向</div>
+          </div>
+          <div class="mapping-row" role="row">
+            <div class="mapping-cell" role="cell"><strong>交易资料分散</strong><p>订单、合同、发票、物流与付款记录来源不一。</p></div>
+            <div class="mapping-cell" role="cell"><strong>OCR + 文档管理</strong><p>自动识别并标准化多种贸易文件格式。</p></div>
+            <div class="mapping-cell" role="cell"><p>统一提取、结构化贸易资料，形成可核验的数据基础。</p></div>
+          </div>
+          <div class="mapping-row" role="row">
+            <div class="mapping-cell" role="cell"><strong>信息不透明</strong><p>财务记录不完整，交易关系难以追溯。</p></div>
+            <div class="mapping-cell" role="cell"><strong>交易关系图谱</strong><p>把企业与订单、客户、供应商、物流、付款关联起来。</p></div>
+            <div class="mapping-cell" role="cell"><p>连接订单、合同、发票、物流和付款，呈现完整经营视图。</p></div>
+          </div>
+          <div class="mapping-row" role="row">
+            <div class="mapping-cell" role="cell"><strong>付款与回款错配</strong><p>先付供应商货款，后收海外客户回款。</p></div>
+            <div class="mapping-cell" role="cell"><strong>现金流预测</strong><p>按币种和日期排列未来应收应付。</p></div>
+            <div class="mapping-cell" role="cell"><p>提前识别营运资金缺口的时间、金额与成因。</p></div>
+          </div>
+          <div class="mapping-row" role="row">
+            <div class="mapping-cell" role="cell"><strong>多币种风险</strong><p>同时处理 RMB、HKD、USD 等货币。</p></div>
+            <div class="mapping-cell" role="cell"><strong>多币种现金流分析</strong><p>模拟汇率变化与结算币种选择对现金流的影响。</p></div>
+            <div class="mapping-cell" role="cell"><p>分析币种敞口和汇率影响，帮助企业安排结算与对冲。</p></div>
+          </div>
+          <div class="mapping-row" role="row">
+            <div class="mapping-cell" role="cell"><strong>跨境协同困难</strong><p>不同地区金融监管、业务习惯与系统标准不同。</p></div>
+            <div class="mapping-cell" role="cell"><strong>企业资料整合 + RM 工作台</strong><p>统一企业档案与客户经理复核流程。</p></div>
+            <div class="mapping-cell" role="cell"><p>提供统一交易视图与人工协作，降低跨境资料核对成本。</p></div>
+          </div>
+          <div class="mapping-row" role="row">
+            <div class="mapping-cell" role="cell"><strong>融资渠道与产品选择困难</strong><p>企业不清楚哪些银行服务匹配当前交易。</p></div>
+            <div class="mapping-cell" role="cell"><strong>ICBC 产品匹配</strong><p>基于交易场景推荐相关金融服务。</p></div>
+            <div class="mapping-cell" role="cell"><p>根据企业需求推荐相关金融服务，生成预审报告供 RM 复核。</p></div>
           </div>
         </div>
       </div>

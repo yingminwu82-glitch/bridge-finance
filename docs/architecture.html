@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GBA Bridge Finance — 技术架构文档</title>
+<style>
+  :root {
+    --primary: #a91624;
+    --primary-dark: #7a0f1a;
+    --bg: #fafafa;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --text-secondary: #6b6b73;
+    --border: #e5e5e7;
+    --code-bg: #1e1e2e;
+    --code-text: #cdd6f4;
+    --green: #059669;
+    --blue: #2563eb;
+    --amber: #d97706;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: auto; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+  }
+  /* Sidebar */
+  .sidebar {
+    position: fixed;
+    left: 0; top: 0;
+    width: 280px;
+    height: 100vh;
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 24px 16px;
+    z-index: 100;
+  }
+  .sidebar h2 {
+    font-size: 14px;
+    color: var(--primary);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--primary);
+  }
+  .sidebar ul { list-style: none; }
+  .sidebar li a {
+    display: block;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+  .sidebar li a:hover {
+    background: #f3f4f6;
+    color: var(--primary);
+  }
+  .sidebar li a.sub { padding-left: 24px; font-size: 12px; }
+  /* Main */
+  .main {
+    margin-left: 280px;
+    padding: 48px 64px;
+    max-width: 960px;
+  }
+  /* Header */
+  .doc-header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    padding: 48px 64px;
+    margin: -48px -64px 32px;
+    border-radius: 0 0 24px 24px;
+  }
+  .doc-header .badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    margin-bottom: 16px;
+  }
+  .doc-header h1 { font-size: 32px; margin-bottom: 8px; }
+  .doc-header p { opacity: 0.9; font-size: 15px; }
+  /* Sections */
+  section { margin-bottom: 48px; }
+  h2 {
+    font-size: 24px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+    color: var(--text);
+  }
+  h2 .num {
+    color: var(--primary);
+    margin-right: 8px;
+  }
+  h3 {
+    font-size: 18px;
+    margin: 24px 0 12px;
+    color: var(--text);
+  }
+  h4 {
+    font-size: 15px;
+    margin: 16px 0 8px;
+    color: var(--primary);
+  }
+  p { margin-bottom: 12px; font-size: 14px; }
+  ul, ol { margin: 8px 0 16px 20px; }
+  li { margin-bottom: 4px; font-size: 14px; }
+  /* Cards */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 12px 0;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .card-grid .card { margin: 0; }
+  /* Tech stack badges */
+  .tech-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f3f4f6;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    margin: 2px;
+  }
+  .tech-badge.backend { background: #fef3c7; color: #92400e; }
+  .tech-badge.frontend { background: #dbeafe; color: #1e40af; }
+  .tech-badge.infra { background: #d1fae5; color: #065f46; }
+  /* Architecture diagram */
+  .arch-diagram {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    margin: 16px 0;
+    overflow-x: auto;
+  }
+  .arch-layer {
+    margin-bottom: 24px;
+  }
+  .arch-layer-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .arch-boxes {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .arch-box {
+    border-radius: 10px;
+    padding: 12px 16px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 120px;
+    border: 2px solid;
+  }
+  .arch-box .desc {
+    font-size: 11px;
+    font-weight: 400;
+    opacity: 0.8;
+    margin-top: 4px;
+  }
+  .arch-box.user { background: #ede9fe; border-color: #8b5cf6; color: #5b21b6; }
+  .arch-box.frontend { background: #dbeafe; border-color: var(--blue); color: #1e40af; }
+  .arch-box.api { background: #fef3c7; border-color: var(--amber); color: #92400e; }
+  .arch-box.service { background: #d1fae5; border-color: var(--green); color: #065f46; }
+  .arch-box.data { background: #fce7f3; border-color: #db2777; color: #9d174d; }
+  .arch-arrow {
+    font-size: 24px;
+    color: var(--text-secondary);
+    margin: 0 4px;
+  }
+  .arch-arrow.down {
+    text-align: center;
+    margin: 4px 0;
+  }
+  /* Code block */
+  pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 16px 20px;
+    border-radius: 10px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 12px 0;
+  }
+  code {
+    font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  }
+  p code, li code {
+    background: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--primary);
+  }
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    text-align: left;
+  }
+  th {
+    background: #f9fafb;
+    font-weight: 600;
+    color: var(--text);
+  }
+  tr:hover td { background: #f9fafb; }
+  .method-get { color: var(--green); font-weight: 700; }
+  .method-post { color: var(--amber); font-weight: 700; }
+  .status-ok { color: var(--green); font-weight: 700; }
+  /* Flow steps */
+  .flow-steps {
+    display: flex;
+    gap: 0;
+    margin: 20px 0;
+    flex-wrap: wrap;
+  }
+  .flow-step {
+    flex: 1;
+    min-width: 180px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 16px;
+    position: relative;
+  }
+  .flow-step:not(:last-child)::after {
+    content: "→";
+    position: absolute;
+    right: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 20px;
+    color: var(--primary);
+    z-index: 10;
+    background: var(--bg);
+    padding: 0 4px;
+  }
+  .flow-step .num {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    line-height: 28px;
+    text-align: center;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .flow-step h4 { color: var(--text); margin-bottom: 4px; }
+  .flow-step p { font-size: 12px; color: var(--text-secondary); margin: 0; }
+  /* Role cards */
+  .role-card {
+    border-left: 4px solid;
+    padding: 12px 16px;
+    margin: 8px 0;
+    background: var(--card);
+    border-radius: 0 8px 8px 0;
+  }
+  .role-card.enterprise { border-color: var(--blue); }
+  .role-card.rm { border-color: var(--primary); }
+  .role-card.risk { border-color: var(--amber); }
+  /* Note */
+  .note {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  .note strong { color: #92400e; }
+  .note.info {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+  }
+  .note.info strong { color: #1e40af; }
+  /* File tree */
+  .file-tree {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 16px 20px;
+    border-radius: 10px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+  .file-tree .dir { color: #89b4fa; font-weight: 700; }
+  .file-tree .file { color: #a6e3a1; }
+  .file-tree .comment { color: #6c7086; }
+  /* Responsive */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; padding: 24px; }
+    .doc-header { margin: -24px -24px 24px; padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <h2>文档导航</h2>
+  <ul>
+    <li><a href="#overview">1. 项目概述</a></li>
+    <li><a href="#tech-stack">2. 技术栈</a></li>
+    <li><a href="#architecture">3. 架构设计</a></li>
+    <li><a href="#architecture-diagram">3.1 架构图</a></li>
+    <li><a href="#project-structure">3.2 项目结构</a></li>
+    <li><a href="#backend-design">4. 后端设计</a></li>
+    <li><a href="#backend-framework">4.1 框架与运行时</a></li>
+    <li><a href="#database">4.2 数据库设计</a></li>
+    <li><a href="#services">4.3 核心服务</a></li>
+    <li><a href="#api-endpoints">4.4 API 接口</a></li>
+    <li><a href="#frontend-design">5. 前端设计</a></li>
+    <li><a href="#features">6. 功能清单</a></li>
+    <li><a href="#usage">7. 使用说明</a></li>
+    <li><a href="#dev-workflow">8. 开发流程</a></li>
+    <li><a href="#deploy">9. 部署指南</a></li>
+    <li><a href="#roles">10. 角色与权限</a></li>
+  </ul>
+</nav>
+
+<!-- Main content -->
+<div class="main">
+
+<!-- Header -->
+<div class="doc-header">
+  <span class="badge">技术文档 v1.0</span>
+  <h1>GBA Bridge Finance</h1>
+  <p>跨境贸易金融智能分析与产品推荐系统 — 完整架构、使用与开发指南</p>
+</div>
+
+<!-- 1. Overview -->
+<section id="overview">
+  <h2><span class="num">1</span>项目概述</h2>
+  <p>
+    <strong>GBA Bridge Finance（湾区融桥）</strong>是一个面向大湾区跨境贸易中小企业的智能金融分析平台。
+    系统通过 OCR 文档解析、交叉验证、风险评估、现金流预测和 RAG 产品匹配，
+    为企业提供从交易资料到金融产品推荐的全流程 AI 辅助分析。
+  </p>
+  <div class="card">
+    <h4>核心价值</h4>
+    <ul>
+      <li><strong>连接交易资料</strong> — 上传订单/合同/发票/物流/付款通知，OCR 自动结构化提取</li>
+      <li><strong>看清经营与现金流</strong> — 多币种现金流预测、资金缺口分析、场景模拟</li>
+      <li><strong>匹配金融服务</strong> — 基于工银产品知识库的 RAG 推荐，可解释、可追溯</li>
+      <li><strong>持续跟进交易</strong> — 交易后监控、动态预警、风险重算提醒</li>
+    </ul>
+  </div>
+  <div class="note">
+    <strong>边界声明：</strong>AI 辅助分析，不构成信贷审批；正式申请、合规审查、风险评估与最终授信由 ICBC 按现有流程完成。
+  </div>
+  <p>
+    <strong>线上地址：</strong>
+    <a href="https://frontend-six-blush-39.vercel.app" style="color:var(--primary);font-weight:600;">
+      https://frontend-six-blush-39.vercel.app
+    </a>
+  </p>
+</section>
+
+<!-- 2. Tech Stack -->
+<section id="tech-stack">
+  <h2><span class="num">2</span>技术栈</h2>
+
+  <h3>后端</h3>
+  <div>
+    <span class="tech-badge backend">Python 3.12</span>
+    <span class="tech-badge backend">FastAPI</span>
+    <span class="tech-badge backend">SQLAlchemy 2.0</span>
+    <span class="tech-badge backend">SQLite</span>
+    <span class="tech-badge backend">Pydantic 2.0</span>
+    <span class="tech-badge backend">Uvicorn</span>
+  </div>
+  <table>
+    <tr><th>组件</th><th>技术</th><th>用途</th></tr>
+    <tr><td>Web 框架</td><td>FastAPI</td><td>ASGI 异步 API 框架，自动生成 OpenAPI 文档</td></tr>
+    <tr><td>ORM</td><td>SQLAlchemy 2.0</td><td>数据库模型定义、查询、关系映射</td></tr>
+    <tr><td>数据库</td><td>SQLite (内存 / 文件)</td><td>Serverless 环境用内存模式，本地用文件模式</td></tr>
+    <tr><td>OCR 引擎</td><td>Tesseract + PyMuPDF + pdfplumber</td><td>图片/PDF 文字识别与结构化提取</td></tr>
+    <tr><td>数据处理</td><td>Pillow + openpyxl + numpy</td><td>图片处理、Excel 解析、数值计算</td></tr>
+    <tr><td>数据校验</td><td>Pydantic 2.0</td><td>请求/响应数据模型校验</td></tr>
+  </table>
+
+  <h3>前端</h3>
+  <div>
+    <span class="tech-badge frontend">Next.js 16</span>
+    <span class="tech-badge frontend">React 19</span>
+    <span class="tech-badge frontend">TypeScript 5</span>
+    <span class="tech-badge frontend">Tailwind CSS 4</span>
+    <span class="tech-badge frontend">ECharts 6</span>
+  </div>
+  <table>
+    <tr><th>组件</th><th>技术</th><th>用途</th></tr>
+    <tr><td>框架</td><td>Next.js 16 (App Router)</td><td>SSG/SSR 页面渲染、路由管理</td></tr>
+    <tr><td>UI 库</td><td>React 19 + Tailwind CSS 4</td><td>组件化 UI 开发、样式系统</td></tr>
+    <tr><td>图表</td><td>ECharts 6 + echarts-for-react</td><td>现金流图表、风险可视化</td></tr>
+    <tr><td>类型系统</td><td>TypeScript 5</td><td>类型安全、接口定义</td></tr>
+  </table>
+
+  <h3>基础设施</h3>
+  <div>
+    <span class="tech-badge infra">Vercel</span>
+    <span class="tech-badge infra">GitHub</span>
+    <span class="tech-badge infra">Serverless</span>
+  </div>
+  <table>
+    <tr><th>组件</th><th>技术</th><th>用途</th></tr>
+    <tr><td>托管平台</td><td>Vercel</td><td>前端 SSG + 后端 Python Serverless 统一部署</td></tr>
+    <tr><td>版本控制</td><td>GitHub</td><td>代码托管、CI/CD 触发</td></tr>
+    <tr><td>部署模式</td><td>Serverless Function</td><td>按需执行、自动扩缩容</td></tr>
+  </table>
+</section>
+
+<!-- 3. Architecture -->
+<section id="architecture">
+  <h2><span class="num">3</span>架构设计</h2>
+
+  <h3 id="architecture-diagram">3.1 架构图</h3>
+  <p>系统采用<strong>单项目一体化架构</strong>，前端页面和后端 API 部署在同一个 Vercel 项目、同一个域名下。</p>
+
+  <div class="arch-diagram">
+    <!-- Layer 1: User -->
+    <div class="arch-layer">
+      <div class="arch-layer-label">用户层 / User Layer</div>
+      <div class="arch-boxes">
+        <div class="arch-box user">
+          企业用户
+          <div class="desc">上传文档 · 查看分析</div>
+        </div>
+        <div class="arch-box user">
+          RM 客户经理
+          <div class="desc">审核 · 确认 · 提交</div>
+        </div>
+        <div class="arch-box user">
+          风险团队
+          <div class="desc">监控 · 预警处理</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-arrow down">↓ HTTPS</div>
+
+    <!-- Layer 2: Frontend -->
+    <div class="arch-layer">
+      <div class="arch-layer-label">前端层 / Frontend Layer — Next.js 16 (SSG)</div>
+      <div class="arch-boxes">
+        <div class="arch-box frontend">
+          首页
+          <div class="desc">/</div>
+        </div>
+        <div class="arch-box frontend">
+          企业端
+          <div class="desc">/app/* (5 页面)</div>
+        </div>
+        <div class="arch-box frontend">
+          RM 工作台
+          <div class="desc">/rm/dashboard</div>
+        </div>
+        <div class="arch-box frontend">
+          监控中心
+          <div class="desc">/monitoring</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-arrow down">↓ /api/* (同域名 rewrite)</div>
+
+    <!-- Layer 3: API Gateway -->
+    <div class="arch-layer">
+      <div class="arch-layer-label">API 层 / API Layer — FastAPI (Python Serverless)</div>
+      <div class="arch-boxes">
+        <div class="arch-box api">
+          认证接口
+          <div class="desc">/api/auth/*</div>
+        </div>
+        <div class="arch-box api">
+          文档接口
+          <div class="desc">/api/documents/*</div>
+        </div>
+        <div class="arch-box api">
+          交易接口
+          <div class="desc">/api/transactions/*</div>
+        </div>
+        <div class="arch-box api">
+          风险接口
+          <div class="desc">/api/risk/*</div>
+        </div>
+        <div class="arch-box api">
+          现金流接口
+          <div class="desc">/api/cashflow/*</div>
+        </div>
+        <div class="arch-box api">
+          推荐接口
+          <div class="desc">/api/recommendations/*</div>
+        </div>
+        <div class="arch-box api">
+          报告接口
+          <div class="desc">/api/reports/*</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-arrow down">↓ 调用</div>
+
+    <!-- Layer 4: Services -->
+    <div class="arch-layer">
+      <div class="arch-layer-label">服务层 / Service Layer — 业务逻辑引擎</div>
+      <div class="arch-boxes">
+        <div class="arch-box service">
+          OCR 服务
+          <div class="desc">文档识别 · 字段提取</div>
+        </div>
+        <div class="arch-box service">
+          文档理解
+          <div class="desc">交叉验证 · 完整度评分</div>
+        </div>
+        <div class="arch-box service">
+          风险引擎
+          <div class="desc">5 维度风险评估</div>
+        </div>
+        <div class="arch-box service">
+          现金流服务
+          <div class="desc">多币种预测 · 缺口分析</div>
+        </div>
+        <div class="arch-box service">
+          产品匹配
+          <div class="desc">RAG 检索 · 推荐生成</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-arrow down">↓ 读写</div>
+
+    <!-- Layer 5: Data -->
+    <div class="arch-layer">
+      <div class="arch-layer-label">数据层 / Data Layer</div>
+      <div class="arch-boxes">
+        <div class="arch-box data">
+          SQLite 数据库
+          <div class="desc">14 张表 · 内存模式 (Serverless)</div>
+        </div>
+        <div class="arch-box data">
+          Seed 数据
+          <div class="desc">2 企业 · 2 交易 · 6 产品</div>
+        </div>
+        <div class="arch-box data">
+          文件存储
+          <div class="desc">/tmp/uploads (Serverless)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note info">
+    <strong>架构要点：</strong>
+    <code>vercel.json</code> 配置 rewrite 规则，将 <code>/api/*</code> 请求路由到同项目内的 Python Serverless Function (<code>api/index.py</code>)。
+    前端页面由 Next.js 静态生成 (SSG)，后端 API 由 FastAPI 按 Serverless 模式运行，共享同一个域名。
+  </div>
+
+  <h3 id="project-structure">3.2 项目结构</h3>
+  <div class="file-tree">
+<span class="comment"># 仓库根目录</span>
+bridge-finance/
+├── <span class="dir">frontend/</span>                          <span class="comment"># ← Vercel 部署根目录 (单项目)</span>
+│   ├── <span class="dir">api/</span>
+│   │   └── <span class="file">index.py</span>                    <span class="comment"># Python Serverless Function 入口</span>
+│   ├── <span class="dir">backend/</span>                        <span class="comment"># 后端完整代码</span>
+│   │   ├── <span class="dir">app/</span>
+│   │   │   ├── <span class="file">__init__.py</span>
+│   │   │   ├── <span class="file">main.py</span>                 <span class="comment"># FastAPI 应用 + 全部 API 路由 (1318 行)</span>
+│   │   │   ├── <span class="file">models.py</span>               <span class="comment"># SQLAlchemy 数据模型 (14 张表)</span>
+│   │   │   ├── <span class="file">seed.py</span>                 <span class="comment"># 种子数据 (企业/交易/产品/文档)</span>
+│   │   │   └── <span class="dir">services/</span>                <span class="comment"># 5 个核心业务服务</span>
+│   │   │       ├── <span class="file">ocr_service.py</span>      <span class="comment"># OCR 文档识别与字段提取</span>
+│   │   │       ├── <span class="file">doc_understanding.py</span><span class="comment"># 文档交叉验证与完整度评分</span>
+│   │   │       ├── <span class="file">risk_engine.py</span>      <span class="comment"># 五维度风险评估引擎</span>
+│   │   │       ├── <span class="file">cashflow_service.py</span> <span class="comment"># 多币种现金流预测与缺口分析</span>
+│   │   │       └── <span class="file">product_matcher.py</span>  <span class="comment"># RAG 产品匹配与推荐生成</span>
+│   │   ├── <span class="file">requirements.txt</span>           <span class="comment"># Python 依赖声明</span>
+│   │   └── <span class="file">pyproject.toml</span>             <span class="comment"># Python 项目配置</span>
+│   ├── <span class="dir">app/</span>                             <span class="comment"># Next.js App Router 页面</span>
+│   │   ├── <span class="file">page.tsx</span>                    <span class="comment"># 首页 (/)</span>
+│   │   ├── <span class="file">layout.tsx</span>                 <span class="comment"># 根布局</span>
+│   │   ├── <span class="dir">app/</span>                        <span class="comment"># 企业端页面</span>
+│   │   │   ├── <span class="dir">dashboard/</span>              <span class="comment"># 交易概览</span>
+│   │   │   ├── <span class="dir">documents/</span>             <span class="comment"># 文档管理</span>
+│   │   │   ├── <span class="dir">graph/</span>                  <span class="comment"># 交易关系图</span>
+│   │   │   ├── <span class="dir">cashflow/</span>               <span class="comment"># 现金流分析</span>
+│   │   │   └── <span class="dir">report/</span>                 <span class="comment"># 预审报告</span>
+│   │   ├── <span class="dir">rm/</span>                         <span class="comment"># RM 工作台</span>
+│   │   └── <span class="dir">monitoring/</span>                 <span class="comment"># 监控中心</span>
+│   ├── <span class="dir">components/</span>
+│   │   ├── <span class="file">Navigation.tsx</span>             <span class="comment"># 导航栏</span>
+│   │   └── <span class="file">BoundaryBanner.tsx</span>         <span class="comment"># AI 边界声明横幅</span>
+│   ├── <span class="dir">lib/</span>
+│   │   └── <span class="file">api.ts</span>                      <span class="comment"># 前端 API 封装 + 类型定义</span>
+│   ├── <span class="file">next.config.ts</span>                 <span class="comment"># Next.js 配置 (dev rewrite)</span>
+│   ├── <span class="file">vercel.json</span>                    <span class="comment"># Vercel 部署配置 (prod rewrite)</span>
+│   ├── <span class="file">requirements.txt</span>               <span class="comment"># Python 依赖 (Vercel 根级)</span>
+│   ├── <span class="file">pyproject.toml</span>                 <span class="comment"># Python 项目配置 (Vercel 根级)</span>
+│   ├── <span class="file">package.json</span>                   <span class="comment"># Node.js 依赖</span>
+│   └── <span class="file">tsconfig.json</span>
+├── <span class="dir">backend/</span>                             <span class="comment"># 后端源码 (开发用，部署用 frontend/backend/)</span>
+├── <span class="dir">docs/</span>
+├── <span class="file">README.md</span>
+└── <span class="file">.gitignore</span>
+  </div>
+</section>
+
+<!-- 4. Backend Design -->
+<section id="backend-design">
+  <h2><span class="num">4</span>后端设计</h2>
+
+  <h3 id="backend-framework">4.1 框架与运行时</h3>
+  <div class="card">
+    <h4>FastAPI 应用</h4>
+    <p>后端使用 <strong>FastAPI</strong>（Python 异步 Web 框架）构建，入口文件为 <code>backend/app/main.py</code>。</p>
+    <ul>
+      <li><strong>ASGI 模式</strong>：基于 Starlette/Uvicorn，支持异步请求处理</li>
+      <li><strong>依赖注入</strong>：通过 <code>Depends(get_db)</code> 管理数据库会话生命周期</li>
+      <li><strong>自动文档</strong>：访问 <code>/docs</code> 获取 Swagger UI，<code>/redoc</code> 获取 ReDoc</li>
+      <li><strong>CORS 中间件</strong>：允许跨域请求（开发环境）</li>
+      <li><strong>静态文件</strong>：本地开发时挂载 <code>/uploads</code> 目录</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4>Serverless 适配</h4>
+    <p>在 Vercel Serverless 环境中，后端通过 <code>api/index.py</code> 包装为 ASGI 应用：</p>
+    <pre><code># api/index.py — Vercel Python Serverless Function 入口
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
+os.environ["VERCEL"] = "1"
+os.environ["GBA_DB_PATH"] = "sqlite:///:memory:"
+os.environ["UPLOAD_DIR"] = "/tmp/uploads"
+from app.main import app  # 导出 ASGI app 供 Vercel 调用</code></pre>
+    <ul>
+      <li><strong>内存数据库</strong>：<code>StaticPool</code> 共享单一连接，确保表结构跨请求可见</li>
+      <li><strong>懒加载</strong>：<code>get_db()</code> 在首次请求时初始化 engine + seed</li>
+      <li><strong>临时文件</strong>：上传文件存储到 <code>/tmp/uploads</code></li>
+    </ul>
+  </div>
+
+  <h3 id="database">4.2 数据库设计</h3>
+  <p>使用 <strong>SQLAlchemy 2.0 ORM</strong> 定义 14 张数据表，覆盖全业务流程：</p>
+  <table>
+    <tr><th>表名</th><th>用途</th><th>关键字段</th></tr>
+    <tr><td><code>enterprises</code></td><td>企业信息</td><td>name, region, industry, main_currencies</td></tr>
+    <tr><td><code>users</code></td><td>系统用户</td><td>username, role, enterprise_id</td></tr>
+    <tr><td><code>documents</code></td><td>上传文档</td><td>doc_type, structured_data (JSON), ocr_confidence (JSON)</td></tr>
+    <tr><td><code>ocr_fields</code></td><td>OCR 字段明细</td><td>field_name, field_value, confidence, needs_verification</td></tr>
+    <tr><td><code>transactions</code></td><td>贸易交易</td><td>buyer, seller, order_amount, overall_risk, completeness_score</td></tr>
+    <tr><td><code>transaction_entities</code></td><td>交易实体</td><td>entity_type, entity_name, role</td></tr>
+    <tr><td><code>transaction_links</code></td><td>实体关系</td><td>source_entity_id, target_entity_id, link_type</td></tr>
+    <tr><td><code>risk_alerts</code></td><td>风险预警</td><td>alert_type, alert_level, main_factors (JSON), explanation</td></tr>
+    <tr><td><code>cashflow_items</code></td><td>现金流条目</td><td>flow_type, currency, amount, flow_date</td></tr>
+    <tr><td><code>scenarios</code></td><td>模拟场景</td><td>name, parameters (JSON), max_funding_gap</td></tr>
+    <tr><td><code>funding_gaps</code></td><td>资金缺口</td><td>gap_amount, gap_currency, gap_duration_days</td></tr>
+    <tr><td><code>products</code></td><td>金融产品知识库</td><td>product_code, category, knowledge_base_entry</td></tr>
+    <tr><td><code>recommendations</code></td><td>产品推荐</td><td>product_id, estimated_amount, confidence, reason</td></tr>
+    <tr><td><code>reviews</code></td><td>RM 审核记录</td><td>review_type, risk_comment, submitted_to_formal</td></tr>
+    <tr><td><code>monitoring_events</code></td><td>监控事件</td><td>event_type, severity, metadata_json</td></tr>
+    <tr><td><code>audit_logs</code></td><td>审计日志</td><td>actor, action, target_type, details</td></tr>
+  </table>
+
+  <h3 id="services">4.3 核心服务</h3>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4 style="color:var(--green)">📄 OCR 服务</h4>
+      <p><code>ocr_service.py</code></p>
+      <ul>
+        <li>支持 PDF / 图片 / Excel</li>
+        <li>Tesseract OCR 引擎 + PyMuPDF</li>
+        <li>文档类型自动分类（订单/合同/发票等）</li>
+        <li>字段提取与置信度评分</li>
+        <li>低置信度字段标记需人工验证</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="color:var(--blue)">🔗 文档理解</h4>
+      <p><code>doc_understanding.py</code></p>
+      <ul>
+        <li>统一数据结构转换</li>
+        <li>跨文档交叉验证</li>
+        <li>金额/日期/名称一致性检查</li>
+        <li>交易完整度评分 (0-100)</li>
+        <li>AI 摘要生成</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="color:var(--primary)">🔍 风险引擎</h4>
+      <p><code>risk_engine.py</code></p>
+      <ul>
+        <li><strong>5 维度评估：</strong></li>
+        <li>1. 文档风险（缺失/冲突）</li>
+        <li>2. 交易对手风险</li>
+        <li>3. 交易风险（物流/日期）</li>
+        <li>4. 融资风险（集中度）</li>
+        <li>5. 汇率与流动性风险</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="color:var(--amber)">💱 现金流服务</h4>
+      <p><code>cashflow_service.py</code></p>
+      <ul>
+        <li>多币种现金流时间线</li>
+        <li>资金缺口计算（金额+天数）</li>
+        <li>场景模拟（延迟/汇率变动）</li>
+        <li>4 种默认场景批量模拟</li>
+        <li>流动性缓冲检查</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="color:#7c3aed">🎯 产品匹配</h4>
+      <p><code>product_matcher.py</code></p>
+      <ul>
+        <li><strong>SimpleRAG</strong> 检索增强生成</li>
+        <li>基于关键词倒排索引</li>
+        <li>交易阶段识别 (5 阶段)</li>
+        <li>工银产品知识库匹配</li>
+        <li>推荐理由 + 知识引用</li>
+        <li>无外部 LLM 依赖，完全离线</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 id="api-endpoints">4.4 API 接口清单</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>功能</th><th>状态</th></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/health</code></td><td>健康检查</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/boundary</code></td><td>获取 AI 边界声明</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-post">POST</td><td><code>/api/auth/login</code></td><td>用户登录</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/enterprises</code></td><td>企业列表</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/enterprises/:id</code></td><td>企业详情</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-post">POST</td><td><code>/api/enterprises</code></td><td>创建企业</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-post">POST</td><td><code>/api/documents/upload</code></td><td>上传文档 + OCR 处理</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/documents</code></td><td>文档列表（可过滤）</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/documents/:id</code></td><td>文档详情 + OCR 字段</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-post">POST</td><td><code>/api/documents/:id/ocr</code></td><td>重新执行 OCR</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-post">POST</td><td><code>/api/documents/:id/confirm</code></td><td>RM 确认 OCR 字段</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/transactions</code></td><td>交易列表</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/transactions/:id</code></td><td>交易详情（含文档/风险/现金流）</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/transactions/:id/graph</code></td><td>交易关系图数据</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-post">POST</td><td><code>/api/risk/analyze</code></td><td>执行风险分析（5 维度）</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-post">POST</td><td><code>/api/cashflow/forecast</code></td><td>现金流预测 + 缺口分析</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-post">POST</td><td><code>/api/scenarios/simulate</code></td><td>场景模拟</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/recommendations</code></td><td>推荐列表</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-post">POST</td><td><code>/api/recommendations/generate</code></td><td>RAG 生成推荐</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-post">POST</td><td><code>/api/reports/preassessment</code></td><td>生成预审报告</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-post">POST</td><td><code>/api/rm/review</code></td><td>RM 审核操作</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/rm/dashboard</code></td><td>RM 仪表盘</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/monitoring/events</code></td><td>监控事件</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/audit/logs</code></td><td>审计日志</td><td class="status-ok">200</td></tr>
+    <tr><td class="method-get">GET</td><td><code>/api/products</code></td><td>工银产品知识库</td><td class="status-ok">200</td></tr>
+  </table>
+</section>
+
+<!-- 5. Frontend Design -->
+<section id="frontend-design">
+  <h2><span class="num">5</span>前端设计</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4>页面结构 (8 个页面)</h4>
+      <table>
+        <tr><th>路由</th><th>功能</th></tr>
+        <tr><td><code>/</code></td><td>首页 — 服务介绍与入口</td></tr>
+        <tr><td><code>/app/dashboard</code></td><td>交易概览仪表盘</td></tr>
+        <tr><td><code>/app/documents</code></td><td>文档上传与管理</td></tr>
+        <tr><td><code>/app/graph</code></td><td>交易关系图可视化</td></tr>
+        <tr><td><code>/app/cashflow</code></td><td>现金流分析与图表</td></tr>
+        <tr><td><code>/app/report</code></td><td>预审报告生成与查看</td></tr>
+        <tr><td><code>/rm/dashboard</code></td><td>RM 工作台 — 全局视图</td></tr>
+        <tr><td><code>/monitoring</code></td><td>交易监控与预警</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h4>前端 API 封装</h4>
+      <p><code>lib/api.ts</code> 提供统一的 API 调用接口：</p>
+      <ul>
+        <li><code>apiGet(path)</code> — GET 请求</li>
+        <li><code>apiPost(path, body)</code> — POST JSON</li>
+        <li><code>apiPostForm(path, formData)</code> — 文件上传</li>
+        <li>完整的 TypeScript 类型定义</li>
+        <li><code>formatCurrency()</code> 货币格式化</li>
+        <li><code>riskClass()</code> 风险等级样式</li>
+        <li>边界声明常量</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4>图表与可视化</h4>
+    <p>使用 <strong>ECharts 6</strong> 渲染：</p>
+    <ul>
+      <li>现金流时间线图（多币种 inflow/outflow）</li>
+      <li>资金缺口可视化</li>
+      <li>风险维度雷达图</li>
+      <li>场景对比图</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 6. Features -->
+<section id="features">
+  <h2><span class="num">6</span>功能清单</h2>
+
+  <div class="flow-steps">
+    <div class="flow-step">
+      <div class="num">1</div>
+      <h4>连接交易资料</h4>
+      <p>上传订单/合同/发票/物流/付款通知，OCR 自动结构化</p>
+    </div>
+    <div class="flow-step">
+      <div class="num">2</div>
+      <h4>看清经营与现金流</h4>
+      <p>AI 结构化 · 多币种现金流 · 资金缺口</p>
+    </div>
+    <div class="flow-step">
+      <div class="num">3</div>
+      <h4>匹配金融服务</h4>
+      <p>产品推荐 · RAG 知识库 · 可解释输出</p>
+    </div>
+    <div class="flow-step">
+      <div class="num">4</div>
+      <h4>持续跟进交易</h4>
+      <p>交易后监控 · 动态预警 · 重算提醒</p>
+    </div>
+  </div>
+
+  <h3>详细功能列表</h3>
+  <table>
+    <tr><th>模块</th><th>功能</th><th>说明</th></tr>
+    <tr><td rowspan="3">文档管理</td><td>文档上传</td><td>支持 PDF/图片/Excel，自动 OCR 提取</td></tr>
+    <tr><td>文档分类</td><td>自动识别订单/合同/发票/付款通知等类型</td></tr>
+    <tr><td>字段验证</td><td>低置信度字段标记，RM 人工确认</td></tr>
+    <tr><td rowspan="4">风险分析</td><td>文档风险</td><td>缺失文档检测、交叉验证冲突</td></tr>
+    <tr><td>交易对手风险</td><td>买卖方信息一致性验证</td></tr>
+    <tr><td>交易风险</td><td>物流状态、日期合理性检查</td></tr>
+    <tr><td>融资与汇率风险</td><td>集中度风险、多币种流动性分析</td></tr>
+    <tr><td rowspan="3">现金流</td><td>多币种预测</td><td>CNY/USD/HKD 现金流时间线</td></tr>
+    <tr><td>资金缺口</td><td>自动计算缺口金额、持续天数</td></tr>
+    <tr><td>场景模拟</td><td>客户延迟、汇率变动等 4 种默认场景</td></tr>
+    <tr><td rowspan="3">产品推荐</td><td>RAG 匹配</td><td>基于工银产品知识库检索</td></tr>
+    <tr><td>阶段识别</td><td>5 阶段（订单→采购→发货→应收→收款）</td></tr>
+    <tr><td>可解释推荐</td><td>推荐理由 + 知识引用 + 置信度</td></tr>
+    <tr><td rowspan="3">RM 工作台</td><td>全局仪表盘</td><td>所有交易概览、风险/文档状态</td></tr>
+    <tr><td>审核操作</td><td>OCR 确认、编辑、补充材料、风险备注</td></tr>
+    <tr><td>提交正式流程</td><td>从 AI 分析到 ICBC 正式流程的边界</td></tr>
+    <tr><td rowspan="2">监控审计</td><td>交易监控</td><td>发货/付款/逾期/汇率变动事件</td></tr>
+    <tr><td>审计日志</td><td>全操作可追溯</td></tr>
+    <tr><td rowspan="2">报告</td><td>预审报告</td><td>标准化报告，含 AI 摘要与风险分析</td></tr>
+    <tr><td>边界声明</td><td>每份报告附带 AI 边界声明</td></tr>
+  </table>
+
+  <h3>内置演示数据</h3>
+  <div class="card-grid">
+    <div class="card">
+      <h4>案例 A：香港贸易商</h4>
+      <ul>
+        <li>企业：利丰贸易（香港）有限公司</li>
+        <li>买方：ABC International LLC (USA)</li>
+        <li>订单金额：USD 500,000</li>
+        <li>供应商：深圳 ABC 电子有限公司</li>
+        <li>发票金额：CNY 3,600,000</li>
+        <li>资金缺口：CNY 3.6M × 10 天</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>案例 B：大型供应链</h4>
+      <ul>
+        <li>企业：利丰贸易（香港）有限公司</li>
+        <li>买方：Global Brands Inc. (USA)</li>
+        <li>订单金额：USD 5,000,000</li>
+        <li>供应商：东莞 XYZ 制造有限公司</li>
+        <li>发票金额：CNY 30,000,000</li>
+        <li>更高风险、更大缺口</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 7. Usage -->
+<section id="usage">
+  <h2><span class="num">7</span>使用说明</h2>
+
+  <h3>在线访问</h3>
+  <p>
+    直接访问 <a href="https://frontend-six-blush-39.vercel.app" style="color:var(--primary);font-weight:600;">
+    https://frontend-six-blush-39.vercel.app</a>
+  </p>
+
+  <h3>页面操作指南</h3>
+
+  <h4>企业端</h4>
+  <ol>
+    <li>从首页点击 <strong>"进入应用"</strong> 或 <strong>"企业端入口"</strong></li>
+    <li>在 <strong>Dashboard</strong> 页面查看交易概览，选择一笔交易进入分析</li>
+    <li>在 <strong>Documents</strong> 页面上传文档（PDF/图片/Excel），系统自动 OCR</li>
+    <li>在 <strong>Graph</strong> 页面查看交易关系图（买方/卖方/供应商/文档）</li>
+    <li>在 <strong>Cashflow</strong> 页面查看多币种现金流预测与资金缺口</li>
+    <li>点击 <strong>"风险分析"</strong> 按钮触发 5 维度风险评估</li>
+    <li>点击 <strong>"生成推荐"</strong> 获取 RAG 产品匹配结果</li>
+    <li>在 <strong>Report</strong> 页面生成预审报告</li>
+  </ol>
+
+  <h4>RM 工作台</h4>
+  <ol>
+    <li>从首页点击 <strong>"RM 工作台"</strong></li>
+    <li>查看所有交易的全局视图（风险等级、文档状态、推荐数量）</li>
+    <li>进入具体交易，确认 OCR 低置信度字段</li>
+    <li>添加风险备注、请求补充材料</li>
+    <li>确认金融服务后，可提交至 ICBC 正式流程</li>
+  </ol>
+
+  <h4>监控中心</h4>
+  <ol>
+    <li>从首页或导航栏进入 <strong>Monitoring</strong></li>
+    <li>查看交易后监控事件（发货更新、付款到账、逾期预警等）</li>
+    <li>查看审计日志，追溯全部操作记录</li>
+  </ol>
+
+  <h3>API 调用示例</h3>
+  <pre><code># 健康检查
+curl https://frontend-six-blush-39.vercel.app/api/health
+
+# 获取企业列表
+curl https://frontend-six-blush-39.vercel.app/api/enterprises
+
+# 获取交易详情
+curl https://frontend-six-blush-39.vercel.app/api/transactions/1
+
+# 执行风险分析
+curl -X POST "https://frontend-six-blush-39.vercel.app/api/risk/analyze?transaction_id=1"
+
+# 生成产品推荐
+curl -X POST "https://frontend-six-blush-39.vercel.app/api/recommendations/generate?transaction_id=1"
+
+# 生成预审报告
+curl -X POST "https://frontend-six-blush-39.vercel.app/api/reports/preassessment?transaction_id=1"
+
+# 查看 Swagger 文档
+# 浏览器访问: https://frontend-six-blush-39.vercel.app/docs</code></pre>
+</section>
+
+<!-- 8. Dev Workflow -->
+<section id="dev-workflow">
+  <h2><span class="num">8</span>开发流程</h2>
+
+  <h3>本地开发环境搭建</h3>
+  <pre><code># 1. 克隆仓库
+git clone https://github.com/yingminwu82-glitch/bridge-finance.git
+cd bridge-finance
+
+# 2. 启动后端 (终端 1)
+cd backend
+pip install -r requirements.txt
+python -m uvicorn app.main:app --reload --port 8000
+# 后端运行在 http://localhost:8000
+# Swagger UI: http://localhost:8000/docs
+
+# 3. 启动前端 (终端 2)
+cd frontend
+npm install
+npm run dev
+# 前端运行在 http://localhost:3000
+# /api/* 自动代理到 localhost:8000</code></pre>
+
+  <div class="note">
+    <strong>本地开发模式：</strong>
+    前端 <code>next.config.ts</code> 配置了 rewrite 规则，将 <code>/api/*</code> 代理到 <code>http://localhost:8000</code>。
+    后端使用文件数据库 <code>gba_bridge_finance.db</code>，数据持久化。
+  </div>
+
+  <h3>开发流程图</h3>
+  <div class="flow-steps">
+    <div class="flow-step">
+      <div class="num">1</div>
+      <h4>本地开发</h4>
+      <p>后端 :8000 + 前端 :3000 独立运行</p>
+    </div>
+    <div class="flow-step">
+      <div class="num">2</div>
+      <h4>代码提交</h4>
+      <p>git commit → push to GitHub main</p>
+    </div>
+    <div class="flow-step">
+      <div class="num">3</div>
+      <h4>Vercel 构建</h4>
+      <p>Next.js SSG + Python Serverless</p>
+    </div>
+    <div class="flow-step">
+      <div class="num">4</div>
+      <h4>线上验证</h4>
+      <p>同域名访问页面 + API</p>
+    </div>
+  </div>
+
+  <h3>代码修改指南</h3>
+
+  <h4>修改后端 API</h4>
+  <ol>
+    <li>编辑 <code>backend/app/main.py</code>（源文件）</li>
+    <li>同步修改 <code>frontend/backend/app/main.py</code>（部署副本）</li>
+    <li>本地测试：<code>python -m uvicorn app.main:app --reload</code></li>
+    <li>提交并推送：<code>git add -A && git commit && git push</code></li>
+    <li>部署：<code>cd frontend && npx vercel --prod</code></li>
+  </ol>
+
+  <h4>修改前端页面</h4>
+  <ol>
+    <li>编辑 <code>frontend/app/</code> 下的 <code>.tsx</code> 文件</li>
+    <li>本地测试：<code>cd frontend && npm run dev</code></li>
+    <li>构建验证：<code>npm run build</code></li>
+    <li>提交并推送</li>
+    <li>部署：<code>cd frontend && npx vercel --prod</code></li>
+  </ol>
+
+  <h4>修改数据模型</h4>
+  <ol>
+    <li>编辑 <code>backend/app/models.py</code> 和 <code>frontend/backend/app/models.py</code></li>
+    <li>如需种子数据，同步编辑 <code>seed.py</code></li>
+    <li>删除本地 <code>.db</code> 文件，重新启动后端自动建表</li>
+    <li>测试通过后提交部署</li>
+  </ol>
+</section>
+
+<!-- 9. Deploy -->
+<section id="deploy">
+  <h2><span class="num">9</span>部署指南</h2>
+
+  <h3>部署架构</h3>
+  <div class="card">
+    <p><strong>单 Vercel 项目</strong>，同一域名同时提供前端页面和后端 API：</p>
+    <pre><code>frontend-six-blush-39.vercel.app
+├── /              → Next.js SSG 页面
+├── /app/*         → Next.js SSG 页面 (5 个)
+├── /rm/dashboard  → Next.js SSG 页面
+├── /monitoring    → Next.js SSG 页面
+└── /api/*         → Python Serverless Function (FastAPI)</code></pre>
+  </div>
+
+  <h3>关键配置文件</h3>
+
+  <h4>vercel.json — 路由配置</h4>
+  <pre><code>{
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    }
+  ]
+}</code></pre>
+
+  <h4>api/index.py — Serverless 入口</h4>
+  <pre><code>import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
+os.environ["VERCEL"] = "1"
+os.environ["GBA_DB_PATH"] = "sqlite:///:memory:"
+os.environ["UPLOAD_DIR"] = "/tmp/uploads"
+from app.main import app</code></pre>
+
+  <h4>next.config.ts — 开发环境代理</h4>
+  <pre><code>// 生产环境: vercel.json 处理 rewrite
+// 开发环境: 代理到 localhost:8000
+async rewrites() {
+  if (process.env.NODE_ENV === "production") return [];
+  return [{ source: "/api/:path*", destination: "http://localhost:8000/api/:path*" }];
+}</code></pre>
+
+  <h3>部署步骤</h3>
+  <pre><code># 1. 确保代码已提交
+cd bridge-finance
+git add -A
+git commit -m "your changes"
+git push origin main
+
+# 2. 部署到 Vercel (从 frontend/ 目录)
+cd frontend
+npx vercel --prod --yes
+
+# 3. 验证部署
+# 页面: https://frontend-six-blush-39.vercel.app/
+# API:  https://frontend-six-blush-39.vercel.app/api/health
+# 文档: https://frontend-six-blush-39.vercel.app/docs</code></pre>
+
+  <div class="note info">
+    <strong>Vercel 自动检测：</strong>
+    项目根目录存在 <code>package.json</code> → 检测为 Next.js 项目；
+    同时存在 <code>requirements.txt</code> / <code>pyproject.toml</code> + <code>api/*.py</code> → 自动构建 Python Serverless Function。
+    两者在同一项目中共存。
+  </div>
+</section>
+
+<!-- 10. Roles -->
+<section id="roles">
+  <h2><span class="num">10</span>角色与权限</h2>
+
+  <div class="role-card enterprise">
+    <h4 style="color:var(--blue)">企业用户 (enterprise_user)</h4>
+    <ul>
+      <li>上传交易文档（订单/合同/发票/物流/付款通知）</li>
+      <li>查看交易分析结果（风险/现金流/推荐）</li>
+      <li>查看交易关系图</li>
+      <li>生成预审报告</li>
+      <li>查看自己企业的交易与文档</li>
+    </ul>
+  </div>
+
+  <div class="role-card rm">
+    <h4 style="color:var(--primary)">RM 客户经理 (rm)</h4>
+    <ul>
+      <li>查看所有分配企业的交易概览（RM Dashboard）</li>
+      <li>确认 OCR 低置信度字段</li>
+      <li>编辑/补充交易信息</li>
+      <li>请求企业补充材料</li>
+      <li>添加风险备注</li>
+      <li>确认金融服务推荐</li>
+      <li>提交至 ICBC 正式流程（触发边界声明）</li>
+    </ul>
+  </div>
+
+  <div class="role-card risk">
+    <h4 style="color:var(--amber)">风险团队 (risk_team)</h4>
+    <ul>
+      <li>查看监控中心 — 全局交易事件</li>
+      <li>处理风险预警（发货/付款/逾期/汇率）</li>
+      <li>查看审计日志 — 全操作追溯</li>
+      <li>评估系统性风险趋势</li>
+    </ul>
+  </div>
+</section>
+
+<!-- Footer -->
+<section>
+  <div style="border-top: 2px solid var(--border); padding-top: 24px; margin-top: 48px;">
+    <p style="color: var(--text-secondary); font-size: 13px; text-align: center;">
+      GBA Bridge Finance · 跨境贸易金融智能分析与产品推荐系统<br>
+      © 2026 · Powered by FastAPI + Next.js · Deployed on Vercel<br>
+      AI 辅助分析，不构成信贷审批
+    </p>
+  </div>
+</section>
+
+</div><!-- /main -->
+
+<script>
+  // Safe anchor scrolling — prevents getBoundingClientRect errors in WebView
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('a[href^="#"]');
+    if (!link) return;
+    var id = link.getAttribute('href').slice(1);
+    if (!id) return;
+    var target = document.getElementById(id);
+    if (!target) return;
+    e.preventDefault();
+    var rect = target.getBoundingClientRect();
+    if (rect) {
+      window.scrollTo(0, rect.top + window.scrollY - 20);
+    }
+  });
+</script>
+</body>
+</html>

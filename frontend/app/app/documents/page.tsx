@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import {
   apiGet, apiPost, apiPostForm, formatCurrency, DocumentItem, Transaction,
 } from "@/lib/api";
+import { useLang } from "@/components/LanguageProvider";
 
 export default function DocumentsPage() {
+  const { t } = useLang();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedTx, setSelectedTx] = useState<number>(1);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -52,10 +54,10 @@ export default function DocumentsPage() {
         `/api/documents/upload?enterprise_id=1&transaction_id=${selectedTx}`,
         formData
       );
-      setMessage(`✓ ${file.name} 已上传，识别为 ${result.doc_type}`);
+      setMessage(`✓ ${file.name} ${t("doc_upload_success")} ${result.doc_type}`);
       loadDocs(selectedTx);
     } catch (err: any) {
-      setMessage(`✗ 上传失败: ${err.message}`);
+      setMessage(`✗ ${t("doc_upload_failed")}: ${err.message}`);
     }
     setUploading(false);
     e.target.value = "";
@@ -65,13 +67,13 @@ export default function DocumentsPage() {
     setMessage("");
     try {
       const result = await apiPost(`/api/documents/${docId}/ocr`);
-      setMessage(`✓ OCR 重新处理完成: ${result.doc_type}`);
+      setMessage(`✓ ${t("doc_ocr_done")}: ${result.doc_type}`);
       loadDocs(selectedTx);
       if (selectedDoc?.id === docId) {
         setSelectedDoc(result);
       }
     } catch (err: any) {
-      setMessage(`✗ OCR 处理失败: ${err.message}`);
+      setMessage(`✗ ${t("doc_ocr_failed")}: ${err.message}`);
     }
   };
 
@@ -79,39 +81,37 @@ export default function DocumentsPage() {
     setMessage("");
     try {
       await apiPost(`/api/documents/${docId}/confirm?reviewer=rm`);
-      setMessage("✓ OCR 字段已确认");
+      setMessage(`✓ ${t("doc_fields_confirmed")}`);
       loadDocs(selectedTx);
     } catch (err: any) {
-      setMessage(`✗ 确认失败: ${err.message}`);
+      setMessage(`✗ ${t("doc_confirm_failed")}: ${err.message}`);
     }
   };
 
-  const currentTx = transactions.find((t) => t.id === selectedTx);
+  const currentTx = transactions.find((tr) => tr.id === selectedTx);
   const allConfirmed = documents.length > 0 && documents.every((d) => d.confirmed);
 
   return (
     <div className="fade-in">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-1">单据上传与 OCR 识别</h1>
-        <p className="text-sm text-[#6b6b73]">
-          上传交易单据，AI 自动识别文档类型并提取关键字段
-        </p>
+        <h1 className="text-2xl font-bold mb-1">{t("doc_title")}</h1>
+        <p className="text-sm text-[#6b6b73]">{t("doc_subtitle")}</p>
       </div>
 
       {/* Transaction selector */}
       <div className="flex gap-2 mb-4 flex-wrap items-center">
-        <span className="text-sm font-medium text-[#6b6b73]">选择交易：</span>
-        {transactions.map((tx) => (
+        <span className="text-sm font-medium text-[#6b6b73]">{t("doc_select_tx")}</span>
+        {transactions.map((tr) => (
           <button
-            key={tx.id}
-            onClick={() => handleTxChange(tx.id)}
+            key={tr.id}
+            onClick={() => handleTxChange(tr.id)}
             className={`px-3 py-1.5 rounded-lg text-sm border transition ${
-              selectedTx === tx.id
+              selectedTx === tr.id
                 ? "bg-[#a91624] text-white border-[#a91624]"
                 : "bg-white border-[#e5e5e8] hover:border-[#a91624]"
             }`}
           >
-            {tx.tx_ref}
+            {tr.tx_ref}
           </button>
         ))}
       </div>
@@ -119,10 +119,10 @@ export default function DocumentsPage() {
       {currentTx && (
         <div className="card mb-4 text-sm">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div><span className="text-[#9b9ba3]">买家：</span>{currentTx.buyer}</div>
-            <div><span className="text-[#9b9ba3]">供应商：</span>{currentTx.supplier}</div>
-            <div><span className="text-[#9b9ba3]">订单：</span>{formatCurrency(currentTx.order_amount, currentTx.order_currency)}</div>
-            <div><span className="text-[#9b9ba3]">发票：</span>{formatCurrency(currentTx.invoice_amount, currentTx.invoice_currency)}</div>
+            <div><span className="text-[#9b9ba3]">{t("doc_buyer")}：</span>{currentTx.buyer}</div>
+            <div><span className="text-[#9b9ba3]">{t("doc_supplier")}：</span>{currentTx.supplier}</div>
+            <div><span className="text-[#9b9ba3]">{t("doc_order")}：</span>{formatCurrency(currentTx.order_amount, currentTx.order_currency)}</div>
+            <div><span className="text-[#9b9ba3]">{t("doc_invoice")}：</span>{formatCurrency(currentTx.invoice_amount, currentTx.invoice_currency)}</div>
           </div>
         </div>
       )}
@@ -132,10 +132,8 @@ export default function DocumentsPage() {
         <label className="block">
           <div className="border-2 border-dashed border-[#e5e5e8] rounded-xl p-8 text-center hover:border-[#a91624] transition cursor-pointer">
             <div className="text-3xl mb-2">📎</div>
-            <div className="font-medium mb-1">上传单据</div>
-            <div className="text-xs text-[#9b9ba3]">
-              支持 PDF / 图片 / Excel · 订单、合同、发票、物流单、付款通知
-            </div>
+            <div className="font-medium mb-1">{t("doc_upload")}</div>
+            <div className="text-xs text-[#9b9ba3]">{t("doc_upload_hint")}</div>
           </div>
           <input
             type="file"
@@ -145,7 +143,7 @@ export default function DocumentsPage() {
             disabled={uploading}
           />
         </label>
-        {uploading && <div className="text-center mt-2 text-sm text-[#a91624]">上传处理中...</div>}
+        {uploading && <div className="text-center mt-2 text-sm text-[#a91624]">{t("doc_uploading")}</div>}
       </div>
 
       {message && (
@@ -160,7 +158,7 @@ export default function DocumentsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Document list */}
         <div className="lg:col-span-1">
-          <h2 className="font-bold mb-3">已上传单据 ({documents.length})</h2>
+          <h2 className="font-bold mb-3">{t("doc_uploaded_list")} ({documents.length})</h2>
           <div className="space-y-2">
             {documents.map((doc) => (
               <div
@@ -177,20 +175,20 @@ export default function DocumentsPage() {
                     <div className="text-xs text-[#9b9ba3] mt-1">{doc.doc_type}</div>
                   </div>
                   {doc.confirmed ? (
-                    <span className="text-xs px-2 py-0.5 rounded bg-[#dcfce7] text-[#166534] shrink-0">已确认</span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-[#dcfce7] text-[#166534] shrink-0">{t("doc_confirmed")}</span>
                   ) : doc.low_confidence_fields.length > 0 ? (
-                    <span className="text-xs px-2 py-0.5 rounded bg-[#fef3c7] text-[#92400e] shrink-0">待确认</span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-[#fef3c7] text-[#92400e] shrink-0">{t("doc_pending")}</span>
                   ) : (
-                    <span className="text-xs px-2 py-0.5 rounded bg-[#f7f7f8] text-[#6b6b73] shrink-0">已识别</span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-[#f7f7f8] text-[#6b6b73] shrink-0">{t("doc_recognized")}</span>
                   )}
                 </div>
                 <div className="text-xs text-[#9b9ba3] mt-1">
-                  类型置信度: {(doc.doc_type_confidence * 100).toFixed(0)}%
+                  {t("doc_type_confidence")}: {(doc.doc_type_confidence * 100).toFixed(0)}%
                 </div>
               </div>
             ))}
             {documents.length === 0 && !loading && (
-              <div className="text-center text-sm text-[#9b9ba3] py-8">暂无单据</div>
+              <div className="text-center text-sm text-[#9b9ba3] py-8">{t("doc_no_docs")}</div>
             )}
           </div>
         </div>
@@ -203,7 +201,7 @@ export default function DocumentsPage() {
                 <div>
                   <h2 className="font-bold">{selectedDoc.filename}</h2>
                   <div className="text-sm text-[#6b6b73] mt-1">
-                    文档类型：{selectedDoc.doc_type}（置信度 {(selectedDoc.doc_type_confidence * 100).toFixed(0)}%）
+                    {t("doc_doc_type")}：{selectedDoc.doc_type}（{t("doc_confidence")} {(selectedDoc.doc_type_confidence * 100).toFixed(0)}%）
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -211,14 +209,14 @@ export default function DocumentsPage() {
                     onClick={() => handleReprocess(selectedDoc.id)}
                     className="btn-secondary btn-sm"
                   >
-                    重新 OCR
+                    {t("doc_reprocess")}
                   </button>
                   <button
                     onClick={() => handleConfirm(selectedDoc.id)}
                     className="btn-primary btn-sm"
                     disabled={selectedDoc.confirmed}
                   >
-                    {selectedDoc.confirmed ? "已确认 ✓" : "确认字段"}
+                    {selectedDoc.confirmed ? t("doc_confirmed_badge") : t("doc_confirm_fields")}
                   </button>
                 </div>
               </div>
@@ -252,7 +250,7 @@ export default function DocumentsPage() {
                         </span>
                         {lowConf && (
                           <span className="text-xs text-[#f59e0b] font-medium whitespace-nowrap">
-                            Low Confidence
+                            {t("doc_low_confidence")}
                           </span>
                         )}
                       </div>
@@ -263,51 +261,51 @@ export default function DocumentsPage() {
 
               {selectedDoc.low_confidence_fields.length > 0 && !selectedDoc.confirmed && (
                 <div className="mt-4 p-3 rounded-lg bg-[#fef3c7] border border-[#f0d060] text-sm text-[#92400e]">
-                  ⚠ 以下字段置信度低于 85%，需 RM 人工确认后方可进入后续分析：
+                  {t("doc_low_conf_warning")}
                   <span className="font-medium ml-1">{selectedDoc.low_confidence_fields.join(", ")}</span>
                 </div>
               )}
 
               {selectedDoc.confirmed && (
                 <div className="mt-4 p-3 rounded-lg bg-[#dcfce7] border border-[#86efac] text-sm text-[#166534]">
-                  ✓ 字段已由 RM 确认，可进入后续分析流程
+                  {t("doc_confirmed_msg")}
                 </div>
               )}
             </div>
           ) : (
             <div className="card text-center py-16 text-[#9b9ba3]">
-              选择左侧单据查看 OCR 识别结果
+              {t("doc_select_doc")}
             </div>
           )}
 
           {/* Pipeline status */}
           {documents.length > 0 && (
             <div className="card mt-4">
-              <h3 className="font-bold text-sm mb-3">分析流程状态</h3>
+              <h3 className="font-bold text-sm mb-3">{t("doc_pipeline_status")}</h3>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`px-3 py-1 rounded text-xs font-medium ${allConfirmed ? "bg-[#dcfce7] text-[#166534]" : "bg-[#fef3c7] text-[#92400e]"}`}>
-                  1. OCR 识别 {documents.length > 0 ? "✓" : "○"}
+                  {t("doc_pipeline_ocr")} {documents.length > 0 ? "✓" : "○"}
                 </span>
                 <span className="text-[#9b9ba3]">→</span>
                 <span className={`px-3 py-1 rounded text-xs font-medium ${allConfirmed ? "bg-[#dcfce7] text-[#166534]" : "bg-[#f7f7f8] text-[#6b6b73]"}`}>
-                  2. RM 确认 {allConfirmed ? "✓" : "○"}
+                  {t("doc_pipeline_rm")} {allConfirmed ? "✓" : "○"}
                 </span>
                 <span className="text-[#9b9ba3]">→</span>
                 <span className="px-3 py-1 rounded text-xs font-medium bg-[#f7f7f8] text-[#6b6b73]">
-                  3. 文档理解
+                  {t("doc_pipeline_understanding")}
                 </span>
                 <span className="text-[#9b9ba3]">→</span>
                 <span className="px-3 py-1 rounded text-xs font-medium bg-[#f7f7f8] text-[#6b6b73]">
-                  4. 风险评估
+                  {t("doc_pipeline_assessment")}
                 </span>
                 <span className="text-[#9b9ba3]">→</span>
                 <span className="px-3 py-1 rounded text-xs font-medium bg-[#f7f7f8] text-[#6b6b73]">
-                  5. 产品匹配
+                  {t("doc_pipeline_matching")}
                 </span>
               </div>
               <div className="mt-3 flex gap-2">
-                <a href={`/app/graph?tx=${selectedTx}`} className="btn-primary btn-sm">查看交易图谱 →</a>
-                <a href={`/app/cashflow?tx=${selectedTx}`} className="btn-secondary btn-sm">现金流分析 →</a>
+                <a href={`/app/graph?tx=${selectedTx}`} className="btn-primary btn-sm">{t("doc_view_graph")}</a>
+                <a href={`/app/cashflow?tx=${selectedTx}`} className="btn-secondary btn-sm">{t("doc_view_cashflow")}</a>
               </div>
             </div>
           )}

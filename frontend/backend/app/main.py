@@ -29,7 +29,7 @@ from app.services.doc_understanding import (
 from app.services.risk_engine import (
     assess_document_risk, assess_counterparty_risk, assess_transaction_risk,
     assess_financing_risk, assess_fx_liquidity_risk, aggregate_risk,
-    generate_risk_explanation, is_high_risk, should_escalate
+    generate_risk_explanation, is_high_risk, should_escalate, localize_alerts
 )
 from app.services.cashflow_service import (
     calculate_funding_gap, simulate_scenario, get_default_scenarios,
@@ -39,9 +39,82 @@ from app.services.product_matcher import (
     SimpleRAG, match_products, generate_recommendation_summary,
     identify_transaction_stage
 )
+from app.services.risk_labels import localize_alert
+from app.services.i18n import normalize_lang
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _localize_risk_alert(alert, lang: str) -> dict:
+    """Build a localized dict from a stored RiskAlert ORM object.
+
+    Data Model (alert_type / alert_level / factors) is kept as-is; only the
+    human-readable alert_message and explanation are re-rendered per language
+    using the persisted alert_code + alert_params.
+    """
+    base = {
+        "id": getattr(alert, "id", None),
+        "alert_type": alert.alert_type,
+        "alert_level": alert.alert_level,
+        "alert_message": alert.alert_message,
+        "main_factors": alert.main_factors,
+        "positive_factors": alert.positive_factors,
+        "explanation": alert.explanation,
+        "resolved": getattr(alert, "resolved", None),
+    }
+    code = getattr(alert, "alert_code", None)
+    params = getattr(alert, "alert_params", None)
+    if code:
+        loc = localize_alert(
+            {"code": code, "params": params or {},
+             "alert_message": alert.alert_message,
+             "explanation": alert.explanation,
+             "alert_type": alert.alert_type, "alert_level": alert.alert_level},
+            normalize_lang(lang),
+        )
+        base["alert_message"] = loc.get("alert_message", alert.alert_message)
+        base["explanation"] = loc.get("explanation", alert.explanation)
+    return base
+
+
+def _localized_product_name(product, lang: str = "zh-CN") -> str:
+    """Return the product name in the requested language."""
+    if product is None:
+        return ""
+    lang = normalize_lang(lang)
+    if lang == "en":
+        return product.product_name or product.product_name_cn or ""
+    if lang == "zh-TW":
+        return product.product_name_tw or product.product_name_cn or product.product_name or ""
+    return product.product_name_cn or product.product_name or ""
+
+
+def _rec_payload(rec, product, lang: str = "zh-CN") -> dict:
+    """Serialize a stored Recommendation together with its product details."""
+    return {
+        "id": getattr(rec, "id", None),
+        "transaction_id": getattr(rec, "transaction_id", None),
+        "product_id": rec.product_id,
+        "product_code": getattr(product, "product_code", None) if product else None,
+        "product_name": _localized_product_name(product, lang),
+        "product_name_en": getattr(product, "product_name", None) if product else None,
+        "product_name_cn": getattr(product, "product_name_cn", None) if product else None,
+        "product_name_tw": getattr(product, "product_name_tw", None) if product else None,
+        "product_category": getattr(product, "category", None) if product else None,
+        "product_description": getattr(product, "description", None) if product else None,
+        "transaction_stage": rec.transaction_stage,
+        "reason": rec.reason,
+        "estimated_amount": rec.estimated_amount,
+        "estimated_currency": rec.estimated_currency,
+        "estimated_tenor_days": rec.estimated_tenor_days,
+        "use_of_funds": rec.use_of_funds,
+        "required_materials": rec.required_materials,
+        "knowledge_reference": rec.knowledge_reference,
+        "confidence": rec.confidence,
+        "status": getattr(rec, "status", None),
+    }
+
 
 # ─── Database Setup ───
 # Use in-memory SQLite when running on Vercel (no persistent filesystem).
@@ -153,17 +226,26 @@ async def login(username: str, password: str, db: Session = Depends(get_db)):
 
 
 # ─── Enterprise Routes ───
+def _business_model(ent, lang: str = "zh-CN"):
+    """Return business_model in the requested language."""
+    if lang == "zh-TW" and getattr(ent, "business_model_tw", None):
+        return ent.business_model_tw
+    if lang == "zh-CN" and getattr(ent, "business_model_zh", None):
+        return ent.business_model_zh
+    return ent.business_model
+
+
 @app.get("/api/enterprises")
-async def list_enterprises(db: Session = Depends(get_db)):
+async def list_enterprises(lang: str = "zh-CN", db: Session = Depends(get_db)):
     enterprises = db.query(Enterprise).all()
     return {"enterprises": [{"id": e.id, "name": e.name, "name_en": e.name_en,
                               "region": e.region, "industry": e.industry,
                               "main_currencies": e.main_currencies,
-                              "business_model": e.business_model} for e in enterprises]}
+                              "business_model": _business_model(e, lang)} for e in enterprises]}
 
 
 @app.get("/api/enterprises/{enterprise_id}")
-async def get_enterprise(enterprise_id: int, db: Session = Depends(get_db)):
+async def get_enterprise(enterprise_id: int, lang: str = "zh-CN", db: Session = Depends(get_db)):
     ent = db.query(Enterprise).filter(Enterprise.id == enterprise_id).first()
     if not ent:
         raise HTTPException(status_code=404, detail="Enterprise not found")
@@ -176,7 +258,7 @@ async def get_enterprise(enterprise_id: int, db: Session = Depends(get_db)):
         "annual_trade_volume": ent.annual_trade_volume,
         "existing_bank_services": ent.existing_bank_services,
         "current_financing": ent.current_financing,
-        "business_model": ent.business_model,
+        "business_model": _business_model(ent, lang),
     }
 
 
@@ -436,7 +518,7 @@ async def list_transactions(enterprise_id: Optional[int] = None,
 
 
 @app.get("/api/transactions/{tx_id}")
-async def get_transaction(tx_id: int, db: Session = Depends(get_db)):
+async def get_transaction(tx_id: int, lang: str = "zh-CN", db: Session = Depends(get_db)):
     tx = db.query(Transaction).filter(Transaction.id == tx_id).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -452,6 +534,7 @@ async def get_transaction(tx_id: int, db: Session = Depends(get_db)):
         Recommendation.transaction_id == tx_id
     ).all()
     funding_gaps = db.query(FundingGap).filter(FundingGap.transaction_id == tx_id).all()
+    product_map = {p.id: p for p in db.query(Product).all()}
 
     return {
         "id": tx.id,
@@ -485,16 +568,7 @@ async def get_transaction(tx_id: int, db: Session = Depends(get_db)):
             "low_confidence_fields": d.low_confidence_fields,
             "confirmed": d.confirmed,
         } for d in documents],
-        "risk_alerts": [{
-            "id": r.id,
-            "alert_type": r.alert_type,
-            "alert_level": r.alert_level,
-            "alert_message": r.alert_message,
-            "main_factors": r.main_factors,
-            "positive_factors": r.positive_factors,
-            "explanation": r.explanation,
-            "resolved": r.resolved,
-        } for r in risk_alerts],
+        "risk_alerts": [_localize_risk_alert(r, lang) for r in risk_alerts],
         "cashflows": [{
             "id": c.id,
             "flow_type": c.flow_type,
@@ -521,20 +595,8 @@ async def get_transaction(tx_id: int, db: Session = Depends(get_db)):
             "gap_end_date": f.gap_end_date.isoformat() if f.gap_end_date else None,
             "primary_cause": f.primary_cause,
         } for f in funding_gaps],
-        "recommendations": [{
-            "id": r.id,
-            "product_id": r.product_id,
-            "transaction_stage": r.transaction_stage,
-            "reason": r.reason,
-            "estimated_amount": r.estimated_amount,
-            "estimated_currency": r.estimated_currency,
-            "estimated_tenor_days": r.estimated_tenor_days,
-            "use_of_funds": r.use_of_funds,
-            "required_materials": r.required_materials,
-            "knowledge_reference": r.knowledge_reference,
-            "confidence": r.confidence,
-            "status": r.status,
-        } for r in recommendations],
+        "recommendations": [_rec_payload(r, product_map.get(r.product_id), lang)
+                            for r in recommendations],
     }
 
 
@@ -621,7 +683,7 @@ async def get_transaction_graph(tx_id: int, db: Session = Depends(get_db)):
 
 # ─── Risk Analysis Routes ───
 @app.post("/api/risk/analyze")
-async def analyze_risk(transaction_id: int, db: Session = Depends(get_db)):
+async def analyze_risk(transaction_id: int, lang: str = "zh-CN", db: Session = Depends(get_db)):
     """Run risk analysis on a transaction."""
     tx = db.query(Transaction).filter(Transaction.id == transaction_id).first()
     if not tx:
@@ -707,22 +769,25 @@ async def analyze_risk(transaction_id: int, db: Session = Depends(get_db)):
         aggregated["dimensions"],
         aggregated["main_factors"],
         aggregated["positive_factors"],
+        lang=lang,
     )
 
     # Update transaction
     tx.overall_risk = aggregated["overall_risk"]
     tx.risk_dimensions = aggregated["dimensions"]
 
-    # Clear old alerts and save new ones
+    # Clear old alerts and save new ones (persist code + params for i18n on read)
     db.query(RiskAlert).filter(RiskAlert.transaction_id == transaction_id).delete()
     for alert in all_alerts:
-        if alert.get("alert_level") == "Low" and "No duplicate" in alert.get("alert_message", ""):
+        if alert.get("alert_level") == "Low" and alert.get("code") == "no_duplicate":
             # Skip low-level "no issue" alerts from financing risk
             continue
         ra = RiskAlert(
             transaction_id=transaction_id,
             alert_type=alert["alert_type"],
             alert_level=alert["alert_level"],
+            alert_code=alert.get("code"),
+            alert_params=alert.get("params"),
             alert_message=alert["alert_message"],
             main_factors=alert.get("main_factors", []),
             positive_factors=alert.get("positive_factors", []),
@@ -742,6 +807,9 @@ async def analyze_risk(transaction_id: int, db: Session = Depends(get_db)):
     db.add(audit)
     db.commit()
 
+    visible_alerts = [a for a in all_alerts
+                      if not (a.get("alert_level") == "Low" and a.get("code") == "no_duplicate")]
+
     return {
         "transaction_id": transaction_id,
         "completeness_score": completeness,
@@ -754,7 +822,7 @@ async def analyze_risk(transaction_id: int, db: Session = Depends(get_db)):
             "main_factors": a.get("main_factors", []),
             "positive_factors": a.get("positive_factors", []),
             "explanation": a.get("explanation", ""),
-        } for a in all_alerts if not (a.get("alert_level") == "Low" and "No duplicate" in a.get("alert_message", ""))],
+        } for a in localize_alerts(visible_alerts, lang)],
         "explanation": explanation,
         "high_risk": is_high_risk(aggregated["overall_risk"]),
         "requires_manual_review": is_high_risk(aggregated["overall_risk"]) or should_escalate(all_alerts),
@@ -846,6 +914,7 @@ async def simulate_scenarios(transaction_id: int,
 # ─── Recommendations Routes ───
 @app.get("/api/recommendations")
 async def get_recommendations(transaction_id: Optional[int] = None,
+                               lang: str = "zh-CN",
                                db: Session = Depends(get_db)):
     """Get product recommendations for a transaction."""
     if transaction_id:
@@ -859,25 +928,13 @@ async def get_recommendations(transaction_id: Optional[int] = None,
     else:
         recs = db.query(Recommendation).all()
 
-    return {"recommendations": [{
-        "id": r.id,
-        "transaction_id": r.transaction_id,
-        "product_id": r.product_id,
-        "transaction_stage": r.transaction_stage,
-        "reason": r.reason,
-        "estimated_amount": r.estimated_amount,
-        "estimated_currency": r.estimated_currency,
-        "estimated_tenor_days": r.estimated_tenor_days,
-        "use_of_funds": r.use_of_funds,
-        "required_materials": r.required_materials,
-        "knowledge_reference": r.knowledge_reference,
-        "confidence": r.confidence,
-        "status": r.status,
-    } for r in recs]}
+    product_map = {p.id: p for p in db.query(Product).all()}
+    return {"recommendations": [_rec_payload(r, product_map.get(r.product_id), lang)
+                                for r in recs]}
 
 
 @app.post("/api/recommendations/generate")
-async def generate_recommendations(transaction_id: int, db: Session = Depends(get_db)):
+async def generate_recommendations(transaction_id: int, lang: str = "zh-CN", db: Session = Depends(get_db)):
     """Generate new product recommendations for a transaction using the matching engine."""
     tx = db.query(Transaction).filter(Transaction.id == transaction_id).first()
     if not tx:
@@ -889,6 +946,7 @@ async def generate_recommendations(transaction_id: int, db: Session = Depends(ge
         "product_code": p.product_code,
         "product_name": p.product_name,
         "product_name_cn": p.product_name_cn,
+        "product_name_tw": p.product_name_tw,
         "category": p.category,
         "description": p.description,
         "applicable_stages": p.applicable_stages if isinstance(p.applicable_stages, list) else
@@ -921,7 +979,7 @@ async def generate_recommendations(transaction_id: int, db: Session = Depends(ge
     }
 
     # Generate recommendations
-    recommendations = match_products(tx_dict, product_dicts, fg_dict)
+    recommendations = match_products(tx_dict, product_dicts, fg_dict, lang=lang)
 
     # Clear old recommendations and save new ones
     db.query(Recommendation).filter(Recommendation.transaction_id == transaction_id).delete()
@@ -957,14 +1015,14 @@ async def generate_recommendations(transaction_id: int, db: Session = Depends(ge
     return {
         "transaction_id": transaction_id,
         "recommendations": recommendations,
-        "summary": generate_recommendation_summary(recommendations),
+        "summary": generate_recommendation_summary(recommendations, lang=lang),
         "boundary_declaration": BOUNDARY_DECLARATION,
     }
 
 
 # ─── Report Routes ───
 @app.post("/api/reports/preassessment")
-async def generate_preassessment_report(transaction_id: int, db: Session = Depends(get_db)):
+async def generate_preassessment_report(transaction_id: int, lang: str = "zh-CN", db: Session = Depends(get_db)):
     """Generate a standardized financing pre-assessment report."""
     tx = db.query(Transaction).filter(Transaction.id == transaction_id).first()
     if not tx:
@@ -982,6 +1040,7 @@ async def generate_preassessment_report(transaction_id: int, db: Session = Depen
     recommendations = db.query(Recommendation).filter(
         Recommendation.transaction_id == transaction_id
     ).all()
+    product_map = {p.id: p for p in db.query(Product).all()}
 
     # Generate AI summary
     tx_dict = {
@@ -1002,7 +1061,7 @@ async def generate_preassessment_report(transaction_id: int, db: Session = Depen
         }
 
     ai_summary = generate_ai_summary(tx_dict, tx.completeness_score or 0,
-                                      tx.overall_risk or "Low", fg_dict)
+                                      tx.overall_risk or "Low", fg_dict, lang=lang)
 
     report = {
         "report_id": f"RPT-{tx.tx_ref}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
@@ -1020,7 +1079,7 @@ async def generate_preassessment_report(transaction_id: int, db: Session = Depen
             "main_supplier_region": enterprise.main_supplier_region,
             "main_customer_region": enterprise.main_customer_region,
             "main_currencies": enterprise.main_currencies,
-            "business_model": enterprise.business_model,
+            "business_model": _business_model(enterprise, lang),
         },
         "transaction_info": {
             "buyer": tx.buyer,
@@ -1072,15 +1131,8 @@ async def generate_preassessment_report(transaction_id: int, db: Session = Depen
                 "main_risk": s.main_risk,
             } for s in scenarios],
         },
-        "service_recommendations": [{
-            "product_name": r.transaction_stage,  # Will be enriched
-            "reason": r.reason,
-            "estimated_amount": r.estimated_amount,
-            "estimated_currency": r.estimated_currency,
-            "estimated_tenor_days": r.estimated_tenor_days,
-            "use_of_funds": r.use_of_funds,
-            "knowledge_reference": r.knowledge_reference,
-        } for r in recommendations],
+        "service_recommendations": [_rec_payload(r, product_map.get(r.product_id), lang)
+                                     for r in recommendations],
         "ai_summary": ai_summary,
         "rm_review_required": is_high_risk(tx.overall_risk or "Low"),
     }
@@ -1161,7 +1213,7 @@ async def rm_review(transaction_id: int, review_type: str,
 
 
 @app.get("/api/rm/dashboard")
-async def rm_dashboard(reviewer: str = "rm", db: Session = Depends(get_db)):
+async def rm_dashboard(reviewer: str = "rm", lang: str = "zh-CN", db: Session = Depends(get_db)):
     """Get RM dashboard data - overview of all assigned transactions."""
     transactions = db.query(Transaction).all()
 
@@ -1198,7 +1250,7 @@ async def rm_dashboard(reviewer: str = "rm", db: Session = Depends(get_db)):
             }
 
         ai_summary = generate_ai_summary(tx_dict, tx.completeness_score or 0,
-                                          tx.overall_risk or "Low", fg_dict)
+                                          tx.overall_risk or "Low", fg_dict, lang=lang)
 
         dashboard_items.append({
             "transaction_id": tx.id,
@@ -1293,6 +1345,7 @@ async def list_products(db: Session = Depends(get_db)):
         "product_code": p.product_code,
         "product_name": p.product_name,
         "product_name_cn": p.product_name_cn,
+        "product_name_tw": p.product_name_tw,
         "category": p.category,
         "description": p.description,
         "eligibility": p.eligibility,

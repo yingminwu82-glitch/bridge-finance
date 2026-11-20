@@ -30,6 +30,8 @@ class Enterprise(Base):
     current_financing = Column(Text)
     payment_methods = Column(Text)
     business_model = Column(Text)  # description of business model
+    business_model_zh = Column(Text)  # Simplified Chinese version
+    business_model_tw = Column(Text)  # Traditional Chinese version
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -164,6 +166,8 @@ class RiskAlert(Base):
     transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=False)
     alert_type = Column(String(50))  # document_risk, counterparty_risk, transaction_risk, financing_risk, fx_risk
     alert_level = Column(String(20))  # Low, Medium, High
+    alert_code = Column(String(50))  # stable machine key for i18n (e.g. doc_missing)
+    alert_params = Column(JSON)  # parameters for localized templating
     alert_message = Column(Text)
     main_factors = Column(JSON)  # list of factors contributing to risk
     positive_factors = Column(JSON)  # list of factors reducing risk
@@ -231,7 +235,8 @@ class Product(Base):
     product_code = Column(String(20), unique=True)
     product_name = Column(String(100))
     product_name_cn = Column(String(100))
-    category = Column(String(50))  # Trade Finance, Cross-border Settlement, FX, Receivables, Guarantee, Working Capital
+    product_name_tw = Column(String(100))  # Traditional Chinese product name
+    category = Column(String(50))  # Trade Finance, Bank Guarantee, Cross-border Lending, Treasury, SME Financing
     description = Column(Text)
     eligibility = Column(Text)
     required_materials = Column(JSON)

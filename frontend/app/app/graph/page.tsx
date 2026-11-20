@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { apiGet, Transaction, riskClass, formatCurrency } from "@/lib/api";
+import { apiGet, Transaction, formatCurrency } from "@/lib/api";
+import { useLang } from "@/components/LanguageProvider";
 
 export default function GraphPage() {
+  const { t, lang } = useLang();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedTx, setSelectedTx] = useState<number>(1);
   const [graphData, setGraphData] = useState<any>(null);
@@ -25,10 +27,10 @@ export default function GraphPage() {
       setGraphData(data);
       setLoading(false);
     });
-    apiGet(`/api/transactions/${selectedTx}`).then((data) => {
+    apiGet(`/api/transactions/${selectedTx}?lang=${lang}`).then((data) => {
       setRiskResult(data);
     });
-  }, [selectedTx]);
+  }, [selectedTx, lang]);
 
   // Draw graph on canvas
   useEffect(() => {
@@ -146,7 +148,6 @@ export default function GraphPage() {
 
     // Find clicked node (approximate hit detection)
     const nodes = graphData.nodes || [];
-    // We need positions - recompute
     const w = canvas.clientWidth;
     const h = 420;
     const cx = w / 2;
@@ -181,26 +182,35 @@ export default function GraphPage() {
     setSelectedNode(null);
   };
 
+  const legendItems = [
+    { c: "#a91624", l: t("graph_enterprise") },
+    { c: "#2563eb", l: t("graph_customer") },
+    { c: "#16a34a", l: t("graph_supplier") },
+    { c: "#f59e0b", l: t("graph_bank_account") },
+    { c: "#8b5cf6", l: t("graph_logistics") },
+    { c: "#6b6b73", l: t("graph_document") },
+  ];
+
   return (
     <div className="fade-in">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-1">交易关系图谱</h1>
-        <p className="text-sm text-[#6b6b73]">可视化交易链：企业 → 客户/供应商 → 单据 → 资金流</p>
+        <h1 className="text-2xl font-bold mb-1">{t("graph_title")}</h1>
+        <p className="text-sm text-[#6b6b73]">{t("graph_subtitle")}</p>
       </div>
 
       {/* Transaction selector */}
       <div className="flex gap-2 mb-4 flex-wrap items-center">
-        {transactions.map((tx) => (
+        {transactions.map((tr) => (
           <button
-            key={tx.id}
-            onClick={() => setSelectedTx(tx.id)}
+            key={tr.id}
+            onClick={() => setSelectedTx(tr.id)}
             className={`px-3 py-1.5 rounded-lg text-sm border transition ${
-              selectedTx === tx.id
+              selectedTx === tr.id
                 ? "bg-[#a91624] text-white border-[#a91624]"
                 : "bg-white border-[#e5e5e8] hover:border-[#a91624]"
             }`}
           >
-            {tx.tx_ref}
+            {tr.tx_ref}
           </button>
         ))}
       </div>
@@ -210,7 +220,7 @@ export default function GraphPage() {
         <div className="lg:col-span-2">
           <div className="card">
             {loading ? (
-              <div className="py-16 text-center text-[#9b9ba3]">加载图谱中...</div>
+              <div className="py-16 text-center text-[#9b9ba3]">{t("graph_loading")}</div>
             ) : (
               <>
                 <canvas
@@ -220,14 +230,7 @@ export default function GraphPage() {
                   style={{ height: 420 }}
                 />
                 <div className="flex gap-3 flex-wrap mt-3 text-xs">
-                  {[
-                    { c: "#a91624", l: "企业" },
-                    { c: "#2563eb", l: "客户" },
-                    { c: "#16a34a", l: "供应商" },
-                    { c: "#f59e0b", l: "银行账户" },
-                    { c: "#8b5cf6", l: "物流" },
-                    { c: "#6b6b73", l: "单据" },
-                  ].map((item) => (
+                  {legendItems.map((item) => (
                     <div key={item.l} className="flex items-center gap-1">
                       <div className="w-3 h-3 rounded-full" style={{ background: item.c }} />
                       <span>{item.l}</span>
@@ -239,66 +242,52 @@ export default function GraphPage() {
           </div>
         </div>
 
-        {/* Side panel: selected node + risk + completeness */}
+        {/* Side panel: selected node + completeness */}
         <div className="space-y-4">
           {/* Selected node detail */}
           <div className="card">
-            <h3 className="font-bold text-sm mb-2">节点详情</h3>
+            <h3 className="font-bold text-sm mb-2">{t("graph_node_detail")}</h3>
             {selectedNode ? (
               <div className="space-y-2 text-sm">
-                <div><span className="text-[#9b9ba3]">名称：</span>{selectedNode.label}</div>
-                <div><span className="text-[#9b9ba3]">类型：</span>{selectedNode.type}</div>
-                {selectedNode.role && <div><span className="text-[#9b9ba3]">角色：</span>{selectedNode.role}</div>}
-                {selectedNode.doc_type && <div><span className="text-[#9b9ba3]">文档类型：</span>{selectedNode.doc_type}</div>}
+                <div><span className="text-[#9b9ba3]">{t("graph_name")}</span>{selectedNode.label}</div>
+                <div><span className="text-[#9b9ba3]">{t("graph_type")}</span>{selectedNode.type}</div>
+                {selectedNode.role && <div><span className="text-[#9b9ba3]">{t("graph_role")}</span>{selectedNode.role}</div>}
+                {selectedNode.doc_type && <div><span className="text-[#9b9ba3]">{t("graph_doc_type")}</span>{selectedNode.doc_type}</div>}
               </div>
             ) : (
-              <p className="text-xs text-[#9b9ba3]">点击图谱中的节点查看详情</p>
+              <p className="text-xs text-[#9b9ba3]">{t("graph_click_hint")}</p>
             )}
           </div>
 
-          {/* Completeness & risk */}
+          {/* Completeness */}
           {riskResult && (
-            <>
-              <div className="card">
-                <h3 className="font-bold text-sm mb-2">交易完整度</h3>
-                <div className="flex items-center gap-3">
-                  <div className="text-3xl font-bold" style={{ color: "#a91624" }}>
-                    {riskResult.completeness_score}
-                  </div>
-                  <div className="text-xs text-[#9b9ba3]">/ 100</div>
+            <div className="card">
+              <h3 className="font-bold text-sm mb-2">{t("graph_completeness")}</h3>
+              <div className="flex items-center gap-3">
+                <div className="text-3xl font-bold" style={{ color: "#a91624" }}>
+                  {riskResult.completeness_score}
                 </div>
-                {riskResult.documents && (
-                  <div className="mt-3 space-y-1">
-                    {riskResult.documents.map((d: any) => (
-                      <div key={d.id} className="text-xs flex items-center justify-between">
-                        <span>{d.doc_type}</span>
-                        <span className={d.confirmed ? "text-[#16a34a]" : "text-[#f59e0b]"}>
-                          {d.confirmed ? "✓" : "○"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div className="text-xs text-[#9b9ba3]">/ 100</div>
               </div>
-
-              <div className="card">
-                <h3 className="font-bold text-sm mb-2">风险维度</h3>
-                <div className="space-y-2">
-                  {Object.entries(riskResult.risk_dimensions || {}).map(([dim, level]: [string, any]) => (
-                    <div key={dim} className="flex items-center justify-between text-xs">
-                      <span>{dim}</span>
-                      <span className={`px-2 py-0.5 rounded ${riskClass(level)}`}>{level}</span>
+              {riskResult.documents && (
+                <div className="mt-3 space-y-1">
+                  {riskResult.documents.map((d: any) => (
+                    <div key={d.id} className="text-xs flex items-center justify-between">
+                      <span>{d.doc_type}</span>
+                      <span className={d.confirmed ? "text-[#16a34a]" : "text-[#f59e0b]"}>
+                        {d.confirmed ? "✓" : "○"}
+                      </span>
                     </div>
                   ))}
                 </div>
-                <a
-                  href={`/app/cashflow?tx=${selectedTx}`}
-                  className="btn-primary btn-sm mt-3 inline-block"
-                >
-                  查看现金流与风险分析 →
-                </a>
-              </div>
-            </>
+              )}
+              <a
+                href={`/app/cashflow?tx=${selectedTx}`}
+                className="btn-primary btn-sm mt-3 inline-block"
+              >
+                {t("graph_view_cashflow")}
+              </a>
+            </div>
           )}
         </div>
       </div>

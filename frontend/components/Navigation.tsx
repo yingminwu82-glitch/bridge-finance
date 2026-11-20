@@ -2,24 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLang } from "./LanguageProvider";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
-const enterpriseLinks = [
-  { href: "/app/dashboard", label: "首页" },
-  { href: "/app/documents", label: "单据管理" },
-  { href: "/app/graph", label: "交易图谱" },
-  { href: "/app/cashflow", label: "现金流" },
-  { href: "/app/report", label: "预审报告" },
-  { href: "/monitoring", label: "监控告警" },
+const linkKeys = [
+  { href: "/app/dashboard", key: "nav_home" },
+  { href: "/app/documents", key: "nav_documents" },
+  { href: "/app/graph", key: "nav_graph" },
+  { href: "/app/cashflow", key: "nav_cashflow" },
+  { href: "/app/report", key: "nav_report" },
 ];
 
-const rmLinks = [
-  { href: "/rm/dashboard", label: "RM 工作台" },
-  { href: "/monitoring", label: "监控告警" },
+const rmLinkKeys = [
+  { href: "/rm/dashboard", key: "nav_rm_dashboard" },
 ];
 
 export function Navigation({ role = "enterprise" }: { role?: "enterprise" | "rm" }) {
   const pathname = usePathname();
-  const links = role === "rm" ? rmLinks : enterpriseLinks;
+  const { t } = useLang();
+  const links = role === "rm" ? rmLinkKeys : linkKeys;
 
   return (
     <nav
@@ -31,8 +32,8 @@ export function Navigation({ role = "enterprise" }: { role?: "enterprise" | "rm"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg shrink-0">
-          <span>湾区融桥</span>
-          <span className="text-xs font-normal opacity-70 hidden sm:inline">GBA Bridge Finance</span>
+          <span>{t("brand")}</span>
+          <span className="text-xs font-normal opacity-70 hidden sm:inline">{t("brand_sub")}</span>
         </Link>
         <div className="flex items-center gap-1 overflow-x-auto">
           {links.map((link) => {
@@ -45,7 +46,7 @@ export function Navigation({ role = "enterprise" }: { role?: "enterprise" | "rm"
                   active ? "bg-white/20 font-semibold" : "hover:bg-white/10"
                 }`}
               >
-                {link.label}
+                {t(link.key)}
               </Link>
             );
           })}
@@ -54,9 +55,12 @@ export function Navigation({ role = "enterprise" }: { role?: "enterprise" | "rm"
               href="/rm/dashboard"
               className="px-3 py-1.5 rounded-lg text-sm whitespace-nowrap hover:bg-white/10 border-l border-white/20 ml-1"
             >
-              RM 视角 →
+              {t("nav_rm_view")} →
             </Link>
           )}
+          <div className="border-l border-white/20 ml-1 pl-1">
+            <LanguageSwitcher />
+          </div>
         </div>
       </div>
     </nav>

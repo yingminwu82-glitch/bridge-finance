@@ -1,8 +1,10 @@
 "use client";
 
-import { BOUNDARY_DECLARATION, ILLUSTRATIVE_NOTE } from "@/lib/api";
+import { useLang } from "./LanguageProvider";
 
 export function BoundaryBanner({ compact = false }: { compact?: boolean }) {
+  const { t } = useLang();
+
   if (compact) {
     return (
       <div
@@ -13,7 +15,7 @@ export function BoundaryBanner({ compact = false }: { compact?: boolean }) {
           color: "#856404",
         }}
       >
-        ⚠ {BOUNDARY_DECLARATION}
+        ⚠ {t("boundary_title")} · {t("boundary_desc")}
       </div>
     );
   }
@@ -22,9 +24,9 @@ export function BoundaryBanner({ compact = false }: { compact?: boolean }) {
       <div className="flex items-start gap-2">
         <span className="text-base">⚠</span>
         <div>
-          <p className="font-semibold">AI 治理边界声明 / AI Governance Boundary</p>
-          <p className="mt-1">{BOUNDARY_DECLARATION}</p>
-          <p className="illustrative-note mt-1">{ILLUSTRATIVE_NOTE}</p>
+          <p className="font-semibold">{t("boundary_title")}</p>
+          <p className="mt-1">{t("boundary_desc")}</p>
+          <p className="illustrative-note mt-1">{t("boundary_illustrative")}</p>
         </div>
       </div>
     </div>

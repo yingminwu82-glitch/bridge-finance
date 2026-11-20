@@ -49,3 +49,6 @@ desktop.ini
 
 # Vercel
 .vercel
+
+# Local tooling settings
+.codebuddy/

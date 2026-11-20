@@ -220,35 +220,16 @@ def calculate_completeness_score(documents: List[Dict], verification: Dict) -> i
 
 
 def generate_ai_summary(transaction_data: Dict, completeness_score: int,
-                        risk_level: str, funding_gap: Optional[Dict]) -> str:
-    """Generate an AI-style transaction summary for the RM dashboard."""
-    parts = []
+                        risk_level: str, funding_gap: Optional[Dict],
+                        lang: str = "zh-CN") -> str:
+    """Generate a localized AI-style transaction summary.
 
-    buyer = transaction_data.get("buyer", "Unknown buyer")
-    supplier = transaction_data.get("supplier", "Unknown supplier")
-    order_amt = transaction_data.get("order_amount", 0)
-    order_curr = transaction_data.get("order_currency", "")
-    invoice_amt = transaction_data.get("invoice_amount", 0)
-    invoice_curr = transaction_data.get("invoice_currency", "")
-
-    parts.append(f"The enterprise is purchasing goods from {supplier} for an overseas customer order from {buyer}.")
-
-    if order_amt and invoice_amt:
-        parts.append(f"The order value is {order_curr} {order_amt:,.0f}, with supplier payment of {invoice_curr} {invoice_amt:,.0f}.")
-
-    if funding_gap:
-        gap_amt = funding_gap.get("gap_amount", 0)
-        gap_curr = funding_gap.get("gap_currency", "")
-        gap_days = funding_gap.get("gap_duration_days", 0)
-        parts.append(f"The main funding pressure arises from the timing mismatch between {invoice_curr} supplier payments and {order_curr} customer collections, creating an estimated {gap_curr} {gap_amt:,.0f} funding gap over {gap_days} days.")
-
-    if completeness_score < 100:
-        parts.append(f"Transaction completeness is {completeness_score}/100, with some documents still pending.")
-
-    if risk_level and risk_level != "Low":
-        parts.append(f"Overall transaction risk is assessed as {risk_level}, requiring RM review.")
-
-    return " ".join(parts)
+    Delegates narrative generation to app.services.i18n so the Data Model
+    (names, currencies, amounts) stays untouched while the text is localized.
+    """
+    from app.services.i18n import generate_ai_summary_i18n
+    return generate_ai_summary_i18n(lang, transaction_data, completeness_score,
+                                    risk_level, funding_gap)
 
 
 def check_duplicate_financing(transactions: List[Dict], invoice_no: str = None,

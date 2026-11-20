@@ -26,6 +26,8 @@ def assess_document_risk(documents: List[Dict], verification: Dict) -> Dict:
         alerts.append({
             "alert_type": "document_risk",
             "alert_level": level,
+            "code": "doc_missing",
+            "params": {"docs": ", ".join(missing)},
             "alert_message": f"Missing Information: {', '.join(missing)} not uploaded.",
             "main_factors": [f"{doc_type} not uploaded" for doc_type in missing],
             "positive_factors": ["Core transaction documents present" if len(missing) <= 1 else "Partial documents present"],
@@ -38,6 +40,8 @@ def assess_document_risk(documents: List[Dict], verification: Dict) -> Dict:
         alerts.append({
             "alert_type": "document_risk",
             "alert_level": "Low" if mismatch["type"] == "Amount Mismatch" else "Medium",
+            "code": "doc_mismatch",
+            "params": {"type": mismatch["type"], "details": mismatch["details"]},
             "alert_message": f"{mismatch['type']}: {mismatch['details']}",
             "main_factors": [mismatch["details"]],
             "positive_factors": ["Other document fields are consistent"] if not missing else [],
@@ -60,6 +64,8 @@ def assess_counterparty_risk(documents: List[Dict], verification: Dict) -> Dict:
                 alerts.append({
                     "alert_type": "counterparty_risk",
                     "alert_level": "Medium",
+                    "code": "account_change",
+                    "params": {},
                     "alert_message": "Payment Account Change: Supplier payment account extracted with low confidence.",
                     "main_factors": [f"Payment account OCR confidence: {conf['Account']:.0%}", "Account may differ from historical records"],
                     "positive_factors": ["Supplier name matches across invoice and payment schedule"],
@@ -74,6 +80,8 @@ def assess_counterparty_risk(documents: List[Dict], verification: Dict) -> Dict:
             alerts.append({
                 "alert_type": "counterparty_risk",
                 "alert_level": "High",
+                "code": "counterparty_inconsistency",
+                "params": {"type": mismatch["type"], "details": mismatch["details"]},
                 "alert_message": f"{mismatch['type']}: {mismatch['details']}",
                 "main_factors": [mismatch["details"]],
                 "positive_factors": [],
@@ -104,6 +112,8 @@ def assess_transaction_risk(transaction: Dict, documents: List[Dict]) -> Dict:
             alerts.append({
                 "alert_type": "transaction_risk",
                 "alert_level": "Medium",
+                "code": "extended_collection",
+                "params": {"days": gap_days},
                 "alert_message": f"Extended collection period: {gap_days} days between supplier payment and customer collection.",
                 "main_factors": [f"Collection gap: {gap_days} days"],
                 "positive_factors": [],
@@ -117,6 +127,8 @@ def assess_transaction_risk(transaction: Dict, documents: List[Dict]) -> Dict:
         alerts.append({
             "alert_type": "transaction_risk",
             "alert_level": "Medium",
+            "code": "logistics_missing",
+            "params": {},
             "alert_message": "Logistics information missing or pending - cannot verify goods movement.",
             "main_factors": ["No logistics document uploaded", "Cannot verify shipment status"],
             "positive_factors": [],
@@ -145,6 +157,8 @@ def assess_financing_risk(transaction: Dict, all_transactions: List[Dict]) -> Di
                 alerts.append({
                     "alert_type": "financing_risk",
                     "alert_level": "High",
+                    "code": "duplicate_financing",
+                    "params": {},
                     "alert_message": "Potential Duplicate Financing: Similar invoice from same supplier found in another transaction.",
                     "main_factors": [f"Supplier: {tx_supplier}", f"Invoice amount match with transaction {other_tx.get('tx_ref')}"],
                     "positive_factors": [],
@@ -157,6 +171,8 @@ def assess_financing_risk(transaction: Dict, all_transactions: List[Dict]) -> Di
         alerts.append({
             "alert_type": "financing_risk",
             "alert_level": "Low",
+            "code": "no_duplicate",
+            "params": {},
             "alert_message": "No duplicate financing indicator detected.",
             "main_factors": [],
             "positive_factors": ["No duplicate invoices detected across transactions", "Invoice appears unique"],
@@ -199,6 +215,11 @@ def assess_fx_liquidity_risk(transaction: Dict, cashflow_items: List[Dict],
             alerts.append({
                 "alert_type": "fx_risk",
                 "alert_level": "High",
+                "code": "fx_exposure",
+                "params": {
+                    "inv_cur": invoice_curr, "inv_amt": f"{invoice_amt:,.0f}",
+                    "ord_cur": order_curr, "ord_amt": f"{order_amt:,.0f}",
+                },
                 "alert_message": f"High FX Exposure: {invoice_curr} {invoice_amt:,.0f} supplier payment paired with "
                                f"{order_curr} {order_amt:,.0f} customer collection.",
                 "main_factors": [
@@ -222,6 +243,8 @@ def assess_fx_liquidity_risk(transaction: Dict, cashflow_items: List[Dict],
         alerts.append({
             "alert_type": "fx_risk",
             "alert_level": level,
+            "code": "funding_gap",
+            "params": {"cur": gap_curr, "amt": f"{gap_amt:,.0f}", "days": gap_days},
             "alert_message": f"Potential Funding Gap: {gap_curr} {gap_amt:,.0f} over {gap_days} days.",
             "main_factors": [f"Funding gap: {gap_curr} {gap_amt:,.0f}", f"Duration: {gap_days} days", "Timing mismatch between payment and collection"],
             "positive_factors": [],
@@ -289,27 +312,21 @@ def aggregate_risk(alerts: List[Dict]) -> Dict:
     }
 
 
+def localize_alerts(alerts: List[Dict], lang: str) -> List[Dict]:
+    """Return alerts with localized human-readable text (Data Model untouched)."""
+    if not lang or lang == "en":
+        return alerts
+    from app.services.risk_labels import localize_alert
+    return [localize_alert(a, lang) for a in alerts]
+
+
 def generate_risk_explanation(overall_risk: str, dimensions: Dict,
-                               main_factors: List[str], positive_factors: List[str]) -> str:
-    """Generate a human-readable risk explanation (Why?)."""
-    parts = []
-
-    parts.append(f"Overall Transaction Risk: {overall_risk}.")
-
-    if main_factors:
-        parts.append(f"Main factors contributing to risk: {'; '.join(main_factors)}.")
-
-    if positive_factors:
-        parts.append(f"Positive factors reducing risk: {'; '.join(positive_factors)}.")
-
-    if overall_risk == "High":
-        parts.append("Next step: This transaction must enter manual review (Flag → Escalate → RM Review). AI output does not constitute a credit decision.")
-    elif overall_risk == "Medium":
-        parts.append("Next step: RM review recommended before proceeding to formal process.")
-    else:
-        parts.append("Next step: Transaction appears low risk, but RM verification is still required before formal approval.")
-
-    return " ".join(parts)
+                               main_factors: List[str], positive_factors: List[str],
+                               lang: str = "zh-CN") -> str:
+    """Generate a localized human-readable risk explanation (Why?)."""
+    from app.services.i18n import generate_risk_explanation_i18n
+    return generate_risk_explanation_i18n(lang, overall_risk, dimensions,
+                                           main_factors, positive_factors)
 
 
 def is_high_risk(overall_risk: str) -> bool:
