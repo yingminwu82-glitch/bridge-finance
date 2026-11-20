@@ -773,13 +773,22 @@ def seed_database(session: Session):
     session.flush()
 
     # ─── Create Cashflow Items ───
-    # Transaction A baseline cashflows
+    # Baseline cash flows are expressed in CNY only (single scenario currency)
+    # and dated relative to the seed date so the demo always has a live gap.
+    today = date.today()
+
+    # Transaction A: supplier/logistics payments before the customer collection.
     cashflows_a = [
-        ("outflow", "Supplier Payment (Shenzhen ABC)", "CNY", -3600000, date(2026, 10, 15), None, tx_a.id),
-        ("inflow", "Customer Collection (ABC International)", "USD", 500000, date(2026, 12, 20), None, tx_a.id),
-        ("outflow", "Operating Expenses (Monthly)", "HKD", -500000, date(2026, 10, 31), None, tx_a.id),
-        ("outflow", "Operating Expenses (Monthly)", "HKD", -500000, date(2026, 11, 30), None, tx_a.id),
-        ("outflow", "Operating Expenses (Monthly)", "HKD", -500000, date(2026, 12, 31), None, tx_a.id),
+        ("outflow", "Supplier Payment (Shenzhen ABC - previous batch)", "CNY", -3600000, today - timedelta(days=37), None, tx_a.id),
+        ("outflow", "Operating Expenses (Monthly - paid)", "CNY", -300000, today - timedelta(days=10), None, tx_a.id),
+        ("outflow", "Supplier Payment (Shenzhen ABC - Q4 production)", "CNY", -2800000, today + timedelta(days=4), None, tx_a.id),
+        ("outflow", "Logistics & Freight (Shenzhen to US)", "CNY", -600000, today + timedelta(days=8), None, tx_a.id),
+        ("outflow", "Supplier Payment (Component Supplier)", "CNY", -1200000, today + timedelta(days=13), None, tx_a.id),
+        ("outflow", "Operating Expenses (Warehouse & Payroll)", "CNY", -400000, today + timedelta(days=18), None, tx_a.id),
+        ("inflow", "Customer Collection (ABC International - tranche 1)", "CNY", 2400000, today + timedelta(days=30), None, tx_a.id),
+        ("inflow", "Customer Collection (ABC International - tranche 2)", "CNY", 1200000, today + timedelta(days=56), None, tx_a.id),
+        ("outflow", "Operating Expenses (Monthly)", "CNY", -300000, today + timedelta(days=61), None, tx_a.id),
+        ("outflow", "Operating Expenses (Monthly)", "CNY", -300000, today + timedelta(days=77), None, tx_a.id),
     ]
     for ft, desc, curr, amt, fd, sid, tid in cashflows_a:
         cf = CashflowItem(
@@ -794,13 +803,20 @@ def seed_database(session: Session):
         )
         session.add(cf)
 
-    # Transaction B baseline cashflows
+    # Transaction B: larger supplier payments, larger and deferred collections.
     cashflows_b = [
-        ("outflow", "Supplier Payment (Dongguan XYZ)", "CNY", -30000000, date(2026, 9, 15), None, tx_b.id),
-        ("inflow", "Customer Collection (Global Brands)", "USD", 5000000, date(2026, 11, 24), None, tx_b.id),
-        ("outflow", "Operating Expenses (Monthly)", "HKD", -500000, date(2026, 9, 30), None, tx_b.id),
-        ("outflow", "Operating Expenses (Monthly)", "HKD", -500000, date(2026, 10, 31), None, tx_b.id),
-        ("outflow", "Operating Expenses (Monthly)", "HKD", -500000, date(2026, 11, 30), None, tx_b.id),
+        ("outflow", "Supplier Payment (Dongguan XYZ - previous batch)", "CNY", -30000000, today - timedelta(days=67), None, tx_b.id),
+        ("outflow", "Operating Expenses (Monthly - paid)", "CNY", -500000, today - timedelta(days=10), None, tx_b.id),
+        ("outflow", "Supplier Payment (Dongguan XYZ - Phase 1)", "CNY", -6500000, today + timedelta(days=4), None, tx_b.id),
+        ("outflow", "Logistics & Freight (Dongguan to US)", "CNY", -1000000, today + timedelta(days=7), None, tx_b.id),
+        ("outflow", "Supplier Payment (Dongguan XYZ - Phase 2)", "CNY", -4500000, today + timedelta(days=12), None, tx_b.id),
+        ("outflow", "Customs Duties & Port Charges", "CNY", -800000, today + timedelta(days=16), None, tx_b.id),
+        ("outflow", "Operating Expenses (Monthly)", "CNY", -500000, today + timedelta(days=20), None, tx_b.id),
+        ("inflow", "Customer Collection (Global Brands - tranche 1)", "CNY", 18000000, today + timedelta(days=30), None, tx_b.id),
+        ("inflow", "Customer Collection (Global Brands - tranche 2)", "CNY", 10000000, today + timedelta(days=51), None, tx_b.id),
+        ("outflow", "Operating Expenses (Monthly)", "CNY", -500000, today + timedelta(days=61), None, tx_b.id),
+        ("inflow", "Customer Collection (Global Brands - tranche 3)", "CNY", 8000000, today + timedelta(days=74), None, tx_b.id),
+        ("outflow", "Operating Expenses (Monthly)", "CNY", -500000, today + timedelta(days=77), None, tx_b.id),
     ]
     for ft, desc, curr, amt, fd, sid, tid in cashflows_b:
         cf = CashflowItem(
@@ -866,28 +882,31 @@ def seed_database(session: Session):
 
     # ─── Create Funding Gaps ───
     # Transaction A baseline gap
+    today = date.today()
+    gap_start_a = today + timedelta(days=13)
+    gap_end_a = today + timedelta(days=30)
+    gap_start_b = today + timedelta(days=4)
+    gap_end_b = today + timedelta(days=30)
+
     fg_a = FundingGap(
         transaction_id=tx_a.id,
         gap_currency="CNY",
-        gap_amount=3600000,
-        gap_duration_days=66,  # Oct 15 to Dec 20
-        gap_start_date=date(2026, 10, 15),
-        gap_end_date=date(2026, 12, 20),
-        primary_cause="Timing mismatch: CNY supplier payment (Oct 15) precedes USD customer collection (Dec 20) by 66 days. Currency mismatch: CNY outflow vs USD inflow.",
-        scenario_id=scenario_a_ids[0],
+        gap_amount=1000000,
+        gap_duration_days=(gap_end_a - gap_start_a).days,
+        gap_start_date=gap_start_a,
+        gap_end_date=gap_end_a,
+        primary_cause="Supplier and logistics payments fall due before the customer collection, creating a short-term liquidity gap."
     )
     session.add(fg_a)
 
-    # Transaction B baseline gap
     fg_b = FundingGap(
         transaction_id=tx_b.id,
         gap_currency="CNY",
-        gap_amount=30000000,
-        gap_duration_days=70,  # Sep 15 to Nov 24
-        gap_start_date=date(2026, 9, 15),
-        gap_end_date=date(2026, 11, 24),
-        primary_cause="Timing mismatch: CNY 30M supplier payment (Sep 15) precedes USD 5M customer collection (Nov 24) by 70 days. Currency mismatch: CNY outflow vs USD inflow creates significant FX exposure.",
-        scenario_id=scenario_b_ids[0],
+        gap_amount=9300000,
+        gap_duration_days=(gap_end_b - gap_start_b).days,
+        gap_start_date=gap_start_b,
+        gap_end_date=gap_end_b,
+        primary_cause="Large phased supplier payments and port charges precede the deferred customer collections, creating a short-term liquidity gap."
     )
     session.add(fg_b)
     session.flush()

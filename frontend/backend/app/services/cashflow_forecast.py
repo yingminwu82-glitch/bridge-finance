@@ -31,7 +31,7 @@ from app.services.cashflow_service import (
 BASE_CURRENCY = "CNY"
 HISTORY_DAYS = 30
 
-DEFAULT_OPENING_CASH = {"CNY": 5000000, "USD": 200000, "HKD": 2000000}
+DEFAULT_OPENING_CASH = {"CNY": 4000000}
 
 # product_code -> simulation family
 PRODUCT_SIMULATION_TYPE = {
@@ -75,9 +75,10 @@ EVENT_LABELS = {
 }
 
 STATUS_LABELS = {
-    "reduced": {"zh-CN": "缺口下降", "zh-TW": "缺口下降", "en": "Reduced"},
-    "unchanged": {"zh-CN": "无变化", "zh-TW": "無變化", "en": "Unchanged"},
-    "increased": {"zh-CN": "缺口上升", "zh-TW": "缺口上升", "en": "Increased"},
+    "resolved": {"zh-CN": "缺口已解决", "zh-TW": "缺口已解決", "en": "Shortfall Resolved"},
+    "partial": {"zh-CN": "部分缓解", "zh-TW": "部分緩解", "en": "Partially Resolved"},
+    "remains": {"zh-CN": "缺口仍存在", "zh-TW": "缺口仍存在", "en": "Shortfall Remains"},
+    "none": {"zh-CN": "无缺口", "zh-TW": "無缺口", "en": "No Shortfall"},
 }
 
 
@@ -164,6 +165,8 @@ def build_entries(cashflow_items: List[Dict], transaction=None) -> List[Dict]:
             item.get("currency"), item.get("amount"), "cashflow_item", "committed")
 
     if transaction:
+        has_inflow = any(e["type"] == "inflow" for e in entries)
+        has_outflow = any(e["type"] == "outflow" for e in entries)
         infos = transaction if isinstance(transaction, dict) else {
             "buyer": transaction.buyer,
             "supplier": transaction.supplier,
@@ -175,12 +178,14 @@ def build_entries(cashflow_items: List[Dict], transaction=None) -> List[Dict]:
             "expected_collection_date": transaction.expected_collection_date,
             "order_date": transaction.order_date,
         }
-        if infos.get("expected_collection_date") and infos.get("order_amount"):
+        if (not has_inflow and infos.get("expected_collection_date")
+                and infos.get("order_amount")):
             add(infos["expected_collection_date"], "inflow",
                 f"Customer Collection ({infos.get('buyer', 'buyer')})",
                 infos.get("order_currency") or BASE_CURRENCY,
                 infos.get("order_amount"), "transaction", "forecast")
-        if infos.get("payment_date") and infos.get("invoice_amount"):
+        if (not has_outflow and infos.get("payment_date")
+                and infos.get("invoice_amount")):
             add(infos["payment_date"], "outflow",
                 f"Supplier Payment ({infos.get('supplier', 'supplier')})",
                 infos.get("invoice_currency") or BASE_CURRENCY,
@@ -232,6 +237,9 @@ def build_forecast(entries: List[Dict], as_of: Optional[date] = None,
     min_balance = None
     min_date = None
     shortfall_days = 0
+    below_buffer_days = 0
+    gap_start = None
+    gap_end = None
     total_inflow = 0.0
     total_outflow = 0.0
 
@@ -256,13 +264,26 @@ def build_forecast(entries: List[Dict], as_of: Optional[date] = None,
             if min_balance is None or balance < min_balance:
                 min_balance = balance
                 min_date = d
-            if balance < buffer:
+            if balance < 0 and gap_start is None:
+                gap_start = d
+            if balance >= 0 and gap_start is not None and gap_end is None:
+                gap_end = d
+            if balance < 0:
                 shortfall_days += 1
+            if balance < buffer:
+                below_buffer_days += 1
         series.append(row)
 
     lowest = round(min_balance if min_balance is not None else opening_base, 2)
     closing = round(balance, 2)
-    shortfall_amount = round(max(0.0, buffer - lowest), 2)
+    cash_deficit = round(max(0.0, -lowest), 2)
+    buffer_gap = round(max(0.0, buffer - lowest), 2)
+    gap_start_date = gap_start.isoformat() if gap_start else None
+    gap_end_date = gap_end.isoformat() if gap_end else None
+    if gap_start:
+        gap_duration_days = max(1, ((gap_end or forecast_end) - gap_start).days)
+    else:
+        gap_duration_days = 0
 
     kpis = {
         "base_currency": BASE_CURRENCY,
@@ -275,9 +296,14 @@ def build_forecast(entries: List[Dict], as_of: Optional[date] = None,
         "lowest_balance": lowest,
         "lowest_balance_date": min_date.isoformat() if min_date else None,
         "min_liquidity_buffer": buffer,
-        "shortfall_amount": shortfall_amount,
+        "shortfall_amount": cash_deficit,
+        "buffer_shortfall_amount": buffer_gap,
         "shortfall_days": shortfall_days,
-        "has_shortfall": shortfall_amount > 0,
+        "below_buffer_days": below_buffer_days,
+        "has_shortfall": cash_deficit > 0,
+        "gap_start_date": gap_start_date,
+        "gap_end_date": gap_end_date,
+        "gap_duration_days": gap_duration_days,
     }
 
     return {
@@ -302,35 +328,39 @@ def build_summary(forecast: Dict, lang: str = "zh-CN") -> str:
     k = forecast["kpis"]
     days = forecast["horizon_days"]
     cur = BASE_CURRENCY
+    gap = ""
+    if k.get("has_shortfall"):
+        if lang == "zh-TW":
+            gap = (f"預計有 {k['shortfall_days']} 天現金餘額為負，"
+                   f"缺口區間 {k.get('gap_start_date')} 至 {k.get('gap_end_date') or '期末'}，"
+                   f"最大缺口 {cur} {k['shortfall_amount']:,.0f}。")
+        elif lang == "en":
+            gap = (f"Cash balance turns negative on {k['shortfall_days']} day(s), "
+                   f"from {k.get('gap_start_date')} to {k.get('gap_end_date') or 'the end of the horizon'}, "
+                   f"with a maximum shortfall of {cur} {k['shortfall_amount']:,.0f}.")
+        else:
+            gap = (f"预计有 {k['shortfall_days']} 天现金余额为负，"
+                   f"缺口区间 {k.get('gap_start_date')} 至 {k.get('gap_end_date') or '期末'}，"
+                   f"最大缺口 {cur} {k['shortfall_amount']:,.0f}。")
     if lang == "zh-TW":
         parts = [f"未來 {days} 天預計現金流入 {cur} {k['total_inflow']:,.0f}，流出 {cur} {k['total_outflow']:,.0f}，"
                  f"期末餘額約 {cur} {k['projected_closing_balance']:,.0f}。"]
         parts.append(f"最低餘額 {cur} {k['lowest_balance']:,.0f}"
                      + (f"（{k['lowest_balance_date']}）" if k.get("lowest_balance_date") else "") + "。")
-        if k["has_shortfall"]:
-            parts.append(f"預計有 {k['shortfall_days']} 天低於最低流動性緩衝，最大缺口 {cur} {k['shortfall_amount']:,.0f}。")
-        else:
-            parts.append("預計期內不低於最低流動性緩衝。")
+        parts.append(gap if gap else "預計期內現金餘額保持為正。")
     elif lang == "en":
         parts = [f"Over the next {days} days, expected inflow is {cur} {k['total_inflow']:,.0f} and outflow "
                  f"{cur} {k['total_outflow']:,.0f}, with a projected closing balance of {cur} "
                  f"{k['projected_closing_balance']:,.0f}."]
         parts.append(f"Lowest balance {cur} {k['lowest_balance']:,.0f}"
                      + (f" on {k['lowest_balance_date']}" if k.get("lowest_balance_date") else "") + ".")
-        if k["has_shortfall"]:
-            parts.append(f"Balance is below the minimum liquidity buffer on {k['shortfall_days']} day(s), "
-                         f"with a maximum shortfall of {cur} {k['shortfall_amount']:,.0f}.")
-        else:
-            parts.append("Balance is expected to stay above the minimum liquidity buffer.")
+        parts.append(gap if gap else "Cash balance is expected to stay positive.")
     else:
         parts = [f"未来 {days} 天预计现金流入 {cur} {k['total_inflow']:,.0f}，流出 {cur} {k['total_outflow']:,.0f}，"
                  f"期末余额约 {cur} {k['projected_closing_balance']:,.0f}。"]
         parts.append(f"最低余额 {cur} {k['lowest_balance']:,.0f}"
                      + (f"（{k['lowest_balance_date']}）" if k.get("lowest_balance_date") else "") + "。")
-        if k["has_shortfall"]:
-            parts.append(f"预计有 {k['shortfall_days']} 天低于最低流动性缓冲，最大缺口 {cur} {k['shortfall_amount']:,.0f}。")
-        else:
-            parts.append("预计期内不低于最低流动性缓冲。")
+        parts.append(gap if gap else "预计期内现金余额保持为正。")
     return " ".join(parts)
 
 
@@ -417,14 +447,40 @@ def _compute_kpis(series: List[Dict], opening_base: float, buffer: float,
     lowest = round(min(balances), 2) if balances else opening_base
     lowest_row = next((r for r in forecast_rows if r.get(key) == lowest), None)
     closing = round(balances[-1], 2) if balances else opening_base
-    shortfall_days = sum(1 for b in balances if b < buffer)
+    deficit = round(max(0.0, -lowest), 2)
+    buffer_gap = round(max(0.0, buffer - lowest), 2)
+    shortfall_days = sum(1 for b in balances if b < 0)
+    below_buffer_days = sum(1 for b in balances if b < buffer)
+
+    gap_start = next((r["date"] for r in forecast_rows if (r.get(key) or 0) < 0), None)
+    gap_end = None
+    if gap_start:
+        seen = False
+        for r in forecast_rows:
+            if r["date"] == gap_start:
+                seen = True
+                continue
+            if seen and (r.get(key) or 0) >= 0:
+                gap_end = r["date"]
+                break
+    gap_duration = 0
+    if gap_start:
+        start_d = _as_date(gap_start)
+        end_d = _as_date(gap_end) if gap_end else _as_date(forecast_rows[-1]["date"])
+        gap_duration = max(1, (end_d - start_d).days)
+
     return {
         "projected_closing_balance": closing,
         "lowest_balance": lowest,
         "lowest_balance_date": lowest_row["date"] if lowest_row else None,
-        "shortfall_amount": round(max(0.0, buffer - lowest), 2),
+        "shortfall_amount": deficit,
+        "buffer_shortfall_amount": buffer_gap,
         "shortfall_days": shortfall_days,
-        "has_shortfall": lowest < buffer,
+        "below_buffer_days": below_buffer_days,
+        "has_shortfall": deficit > 0,
+        "gap_start_date": gap_start,
+        "gap_end_date": gap_end,
+        "gap_duration_days": gap_duration,
     }
 
 
@@ -643,8 +699,39 @@ def simulate_product(product, recommendation, transaction, entries: List[Dict],
                         and _as_date(e["date"]) <= forecast_end]
         foreign_recv.sort(key=lambda e: e["amount_base"], reverse=True)
         recv = foreign_recv[0] if foreign_recv else None
-        currency = recv["currency"] if recv else "USD"
-        hedged_default = float(recv["amount"]) if recv else 0.0
+
+        tx_currency = None
+        tx_amount = 0.0
+        tx_collection_date = None
+        if transaction is not None:
+            if isinstance(transaction, dict):
+                tx_currency = transaction.get("order_currency")
+                tx_amount = float(transaction.get("order_amount") or 0)
+                tx_collection_date = _as_date(transaction.get("expected_collection_date"))
+            else:
+                tx_currency = getattr(transaction, "order_currency", None)
+                tx_amount = float(getattr(transaction, "order_amount", 0) or 0)
+                tx_collection_date = _as_date(
+                    getattr(transaction, "expected_collection_date", None))
+
+        if recv:
+            currency = recv["currency"]
+            hedged_default = float(recv["amount"])
+            exposure_date = _as_date(recv["date"])
+            exposure_source = "cashflow"
+        elif tx_currency and tx_currency != BASE_CURRENCY and tx_amount > 0:
+            # The forecast itself is single-currency (CNY), but the underlying
+            # order is foreign-currency; hedge the conversion of that exposure.
+            currency = tx_currency
+            hedged_default = tx_amount
+            exposure_date = tx_collection_date or (as_of + timedelta(days=30))
+            exposure_source = "transaction"
+        else:
+            currency = "USD"
+            hedged_default = 0.0
+            exposure_date = None
+            exposure_source = "none"
+
         user_hedged = _num(params, "hedged_amount")
         hedged = user_hedged if user_hedged is not None else hedged_default
         forward_rate = _num(params, "forward_rate")
@@ -652,9 +739,9 @@ def simulate_product(product, recommendation, transaction, entries: List[Dict],
         if forward_rate is None:
             unconfigured.append("forward_rate")
         delta = 0.0
-        if forward_rate is not None and spot and recv:
+        if forward_rate is not None and spot and hedged > 0 and exposure_date:
             delta = hedged * (forward_rate - spot)
-            _event(events, _as_date(recv["date"]), "fx_settlement", delta, lang,
+            _event(events, exposure_date, "fx_settlement", delta, lang,
                    currency=BASE_CURRENCY,
                    note=f"{currency}: forward {forward_rate} vs spot {spot}")
         schema = [
@@ -665,6 +752,11 @@ def simulate_product(product, recommendation, transaction, entries: List[Dict],
             _param("spot_rate", spot, f"{currency}/{BASE_CURRENCY}", False, "assumption"),
         ]
         financing_cost = 0.0
+        if exposure_source == "transaction":
+            notes.append({"code": "fx_transaction_exposure",
+                          "text": _label({"zh-CN": f"现金流预测已统一为 CNY；对冲敞口来自订单的 {currency} {hedged:,.0f} 应收，按远期汇率折算差额调整人民币回款。",
+                                          "zh-TW": f"現金流預測已統一為 CNY；對沖敞口來自訂單的 {currency} {hedged:,.0f} 應收，按遠期匯率折算差額調整人民幣回款。",
+                                          "en": f"The forecast is in CNY; the hedge applies to the {currency} {hedged:,.0f} order receivable and adjusts the CNY collection by the forward-vs-spot difference."}, lang)})
         notes.append({"code": "fx_notional_not_cash",
                       "text": _label({"zh-CN": "外汇对冲名义本金不直接作为现金流入，仅体现按远期汇率折算后的结算差额。",
                                       "zh-TW": "外匯對沖名義本金不直接作為現金流入，僅體現按遠期匯率折算後的結算差額。",
@@ -708,12 +800,17 @@ def simulate_product(product, recommendation, transaction, entries: List[Dict],
     base_lowest = base_kpis["lowest_balance"]
     additional_liquidity = round(max(0.0, sim_kpis["lowest_balance"] - base_lowest), 2)
     improvement = round(sim_kpis["lowest_balance"] - base_lowest, 2)
-    if sim_kpis["shortfall_amount"] < base_kpis["shortfall_amount"]:
-        risk_status = "reduced"
-    elif sim_kpis["shortfall_amount"] > base_kpis["shortfall_amount"]:
-        risk_status = "increased"
+
+    base_deficit = round(base_kpis["shortfall_amount"], 2)
+    sim_deficit = round(sim_kpis["shortfall_amount"], 2)
+    if base_deficit > 0 and sim_deficit <= 0:
+        resolution = "resolved"
+    elif base_deficit > 0 and sim_deficit < base_deficit:
+        resolution = "partial"
+    elif base_deficit > 0:
+        resolution = "remains"
     else:
-        risk_status = "unchanged"
+        resolution = "none"
 
     outside = [e for e in events if e["date"] > forecast_end.isoformat()]
     if outside:
@@ -745,12 +842,17 @@ def simulate_product(product, recommendation, transaction, entries: List[Dict],
             "additional_liquidity": additional_liquidity,
             "cash_flow_improvement": improvement,
             "shortfall_risk": {
-                "status": risk_status,
-                "label": _label(STATUS_LABELS[risk_status], lang),
-                "base_shortfall_amount": base_kpis["shortfall_amount"],
-                "simulation_shortfall_amount": sim_kpis["shortfall_amount"],
+                "status": resolution,
+                "resolution": resolution,
+                "label": _label(STATUS_LABELS[resolution], lang),
+                "base_shortfall_amount": base_deficit,
+                "simulation_shortfall_amount": sim_deficit,
                 "base_shortfall_days": base_kpis["shortfall_days"],
                 "simulation_shortfall_days": sim_kpis["shortfall_days"],
+                "base_gap_start_date": base_kpis.get("gap_start_date"),
+                "base_gap_end_date": base_kpis.get("gap_end_date"),
+                "simulation_gap_start_date": sim_kpis.get("gap_start_date"),
+                "simulation_gap_end_date": sim_kpis.get("gap_end_date"),
             },
         },
         "summary": summary,
@@ -772,3 +874,160 @@ def _simulation_summary(lang: str, sim_type: str, sim_kpis: Dict,
     return (f"使用该产品后，预计期末余额 {cur} {sim_kpis['projected_closing_balance']:,.0f}，"
             f"新增可用流动性 {cur} {liquidity:,.0f}，预计融资成本 {cur} {cost:,.0f}；"
             f"最低余额 {cur} {sim_kpis['lowest_balance']:,.0f}。")
+
+
+# ─── Cash-flow-specific recommendations ───
+
+def _display_name(product, lang: str) -> str:
+    cn = getattr(product, "product_name_cn", None) or getattr(product, "product_name", "") or ""
+    tw = getattr(product, "product_name_tw", None) or cn
+    en = getattr(product, "product_name", "") or cn
+    if lang == "en":
+        return en
+    if lang == "zh-TW":
+        return tw
+    return cn
+
+
+def _gap_window_text(lang: str, start: str, end: Optional[str]) -> str:
+    end_txt = end or ("期末" if lang == "zh-CN" else "期末" if lang == "zh-TW" else "the end of the horizon")
+    return f"{start} ~ {end_txt}"
+
+
+def recommend_cashflow_products(products: List, forecast: Dict,
+                                entries: List[Dict], transaction=None,
+                                lang: str = "zh-CN", limit: int = 5) -> List[Dict]:
+    """Pick existing ICBC (Asia) products that can address the forecast gap.
+
+    Only liquidity-providing products are returned when a cash deficit exists:
+    receivables finance (backed by a future receivable) and term/working-capital
+    loans. Guarantees / LCs are excluded because they consume margin rather than
+    inject cash.
+    """
+    lang = _norm_lang(lang)
+    k = forecast["kpis"]
+    deficit = float(k.get("shortfall_amount") or 0)
+    if deficit <= 0:
+        return []
+
+    as_of = date.fromisoformat(forecast["as_of"])
+    horizon_end = as_of + timedelta(days=forecast["horizon_days"])
+    gap_start = k.get("gap_start_date") or as_of.isoformat()
+    gap_end = k.get("gap_end_date")
+    gap_days = int(k.get("gap_duration_days") or 30)
+
+    future_ar = []
+    for e in entries:
+        d = _as_date(e.get("date"))
+        if (e.get("type") == "inflow" and e.get("category") == "AR"
+                and d and as_of <= d <= horizon_end):
+            future_ar.append((d, e))
+    future_ar.sort(key=lambda item: item[0])
+    next_ar_date, next_ar = future_ar[0] if future_ar else (None, None)
+    ar_amount = float(next_ar["amount_base"]) if next_ar else 0.0
+
+    receivable, loans = [], []
+    for product in products:
+        sim_type = simulation_type_for(product)
+        if sim_type == "receivable" and next_ar:
+            amount = round(min(deficit, ar_amount), 2) if ar_amount else deficit
+            tenure = max(1, (next_ar_date - as_of).days)
+            if lang == "zh-CN":
+                reason = (f"预计 {_gap_window_text(lang, gap_start, gap_end)} 出现 "
+                          f"CNY {deficit:,.0f} 现金缺口；{_display_name(product, lang)} 可基于 "
+                          f"{next_ar_date.isoformat()} 到账的应收账款（CNY {ar_amount:,.0f}）提前回笼资金，缓解该缺口。")
+            elif lang == "zh-TW":
+                reason = (f"預計 {_gap_window_text(lang, gap_start, gap_end)} 出現 "
+                          f"CNY {deficit:,.0f} 現金缺口；{_display_name(product, lang)} 可基於 "
+                          f"{next_ar_date.isoformat()} 到賬的應收賬款（CNY {ar_amount:,.0f}）提前回籠資金，緩解該缺口。")
+            else:
+                reason = (f"A CNY {deficit:,.0f} cash gap is projected for "
+                          f"{_gap_window_text(lang, gap_start, gap_end)}. "
+                          f"{_display_name(product, lang)} can advance funds against the "
+                          f"CNY {ar_amount:,.0f} receivable due on {next_ar_date.isoformat()}.")
+            confidence = 0.9
+        elif sim_type == "loan":
+            amount = deficit
+            tenure = max(60, gap_days + 30)
+            if lang == "zh-CN":
+                reason = (f"预计 {_gap_window_text(lang, gap_start, gap_end)} 出现 "
+                          f"CNY {deficit:,.0f} 现金缺口；{_display_name(product, lang)} 可提供约 "
+                          f"{tenure} 天短期营运资金，用于支付供应商与物流费用。")
+            elif lang == "zh-TW":
+                reason = (f"預計 {_gap_window_text(lang, gap_start, gap_end)} 出現 "
+                          f"CNY {deficit:,.0f} 現金缺口；{_display_name(product, lang)} 可提供約 "
+                          f"{tenure} 天短期營運資金，用於支付供應商與物流費用。")
+            else:
+                reason = (f"A CNY {deficit:,.0f} cash gap is projected for "
+                          f"{_gap_window_text(lang, gap_start, gap_end)}. "
+                          f"{_display_name(product, lang)} can provide around {tenure} days of "
+                          f"short-term working capital for supplier and logistics payments.")
+            confidence = 0.82
+        else:
+            continue
+
+        use_of_funds = _label({
+            "zh-CN": "填补预测期现金流缺口",
+            "zh-TW": "填補預測期現金流缺口",
+            "en": "Bridge the forecast cash gap",
+        }, lang)
+        item = {
+            "product_id": getattr(product, "id", None),
+            "product_code": getattr(product, "product_code", None),
+            "product_name": _display_name(product, lang),
+            "product_name_cn": getattr(product, "product_name_cn", None),
+            "product_name_tw": getattr(product, "product_name_tw", None),
+            "product_category": getattr(product, "category", None),
+            "category": getattr(product, "category", None),
+            "transaction_stage": "CashFlow",
+            "reason": reason,
+            "estimated_amount": round(amount, 2),
+            "estimated_currency": BASE_CURRENCY,
+            "estimated_tenor_days": int(tenure),
+            "use_of_funds": use_of_funds,
+            "required_materials": getattr(product, "required_materials", []) or [],
+            "knowledge_reference": (
+                f"{getattr(product, 'product_code', '')}: "
+                f"{(getattr(product, 'knowledge_base_entry', '') or '')[:160]}"
+            ),
+            "confidence": confidence,
+        }
+        (receivable if sim_type == "receivable" else loans).append(item)
+
+    return (receivable[:2] + loans[: max(0, limit - min(2, len(receivable)))])[:limit]
+
+
+def build_legacy_gap(forecast: Dict, lang: str = "zh-CN") -> Dict:
+    """Funding-gap view derived from the same forecast used by the chart."""
+    lang = _norm_lang(lang)
+    k = forecast["kpis"]
+    gaps = []
+    if k.get("has_shortfall"):
+        gaps.append({
+            "gap_currency": BASE_CURRENCY,
+            "gap_amount": k["shortfall_amount"],
+            "gap_start_date": k.get("gap_start_date"),
+            "gap_end_date": k.get("gap_end_date"),
+            "gap_duration_days": k.get("gap_duration_days"),
+            "running_balance": k.get("lowest_balance"),
+        })
+    start = k.get("gap_start_date") or ""
+    end = k.get("gap_end_date") or ("期末" if lang != "en" else "the end of the horizon")
+    if gaps:
+        if lang == "zh-TW":
+            cause = (f"供應商付款與物流費用集中在客戶回款之前，導致 {start} 至 {end} 出現短期現金缺口。")
+        elif lang == "en":
+            cause = (f"Supplier and logistics payments fall due before customer collections, "
+                     f"creating a short-term cash gap from {start} to {end}.")
+        else:
+            cause = (f"供应商付款与物流费用集中在客户回款之前，导致 {start} 至 {end} 出现短期现金缺口。")
+    else:
+        cause = {"zh-CN": "未检测到未来现金余额为负的缺口。",
+                 "zh-TW": "未檢測到未來現金餘額為負的缺口。",
+                 "en": "No negative cash balance is projected."}[lang if lang in ("zh-CN", "zh-TW", "en") else "zh-CN"]
+    return {
+        "gaps": gaps,
+        "primary_cause": cause,
+        "opening_cash": k.get("opening_balance", {}),
+        "min_liquidity_buffer": dict(MIN_LIQUIDITY_BUFFER),
+    }

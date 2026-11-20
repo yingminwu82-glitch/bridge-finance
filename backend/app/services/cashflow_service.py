@@ -77,7 +77,7 @@ def calculate_future_cash_position(cashflow_items: List[Dict],
     Future Cash Position = Opening Cash + Expected Inflows - Expected Outflows
     """
     if opening_cash is None:
-        opening_cash = {"CNY": 5000000, "USD": 200000, "HKD": 2000000}
+        opening_cash = {"CNY": 4000000}
 
     positions = defaultdict(float)
     for curr, amount in opening_cash.items():
@@ -105,7 +105,7 @@ def calculate_funding_gap(cashflow_items: List[Dict],
     If Future Cash Position < Minimum Liquidity Buffer, there is a Potential Funding Gap.
     """
     if opening_cash is None:
-        opening_cash = {"CNY": 5000000, "USD": 200000, "HKD": 2000000}
+        opening_cash = {"CNY": 4000000}
 
     # Build running balance by currency and date
     def _sort_key(x):

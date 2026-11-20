@@ -38,7 +38,7 @@ from app.services.cashflow_service import (
 )
 from app.services.cashflow_forecast import (
     build_entries, build_forecast, build_summary as build_forecast_summary,
-    simulate_product,
+    simulate_product, recommend_cashflow_products, build_legacy_gap,
 )
 from app.services.product_matcher import (
     SimpleRAG, match_products, generate_recommendation_summary,
@@ -864,10 +864,12 @@ async def forecast_cashflow(transaction_id: int, horizon_days: int = 90,
 
     entries = build_entries(cf_dicts, tx)
     forecast = build_forecast(entries, horizon_days=horizon_days)
+    products = db.query(Product).all()
 
-    # Legacy views kept for the funding-gap / scenario sections
+    # Legacy views kept for the funding-gap / scenario sections, derived from
+    # the same forecast so the chart, KPIs and gap card cannot disagree.
     timeline = build_cashflow_timeline(cf_dicts)
-    gap_result = calculate_funding_gap(cf_dicts)
+    gap_result = build_legacy_gap(forecast, lang)
 
     return {
         "transaction_id": transaction_id,
@@ -881,6 +883,8 @@ async def forecast_cashflow(transaction_id: int, horizon_days: int = 90,
         "sources": forecast["sources"],
         "assumptions": forecast["assumptions"],
         "summary": build_forecast_summary(forecast, lang),
+        "cashflow_recommendations": recommend_cashflow_products(
+            products, forecast, entries, tx, lang),
         "cashflow_timeline": timeline,
         "funding_gap": gap_result,
         "legacy_summary": generate_cashflow_summary(cf_dicts, gap_result),
