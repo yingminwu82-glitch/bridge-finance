@@ -11,6 +11,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -34,6 +35,10 @@ from app.services.risk_engine import (
 from app.services.cashflow_service import (
     calculate_funding_gap, simulate_scenario, get_default_scenarios,
     build_cashflow_timeline, generate_cashflow_summary
+)
+from app.services.cashflow_forecast import (
+    build_entries, build_forecast, build_summary as build_forecast_summary,
+    simulate_product,
 )
 from app.services.product_matcher import (
     SimpleRAG, match_products, generate_recommendation_summary,
@@ -832,8 +837,14 @@ async def analyze_risk(transaction_id: int, lang: str = "zh-CN", db: Session = D
 
 # ─── Cashflow Routes ───
 @app.post("/api/cashflow/forecast")
-async def forecast_cashflow(transaction_id: int, db: Session = Depends(get_db)):
-    """Calculate multi-currency cash flow forecast and funding gap."""
+async def forecast_cashflow(transaction_id: int, horizon_days: int = 90,
+                             lang: str = "zh-CN",
+                             db: Session = Depends(get_db)):
+    """Forecast future cash flow from existing transaction / cash-flow records.
+
+    Returns a daily series (historical + forecast) in a CNY reporting base,
+    balance KPIs and the legacy multi-currency funding-gap view.
+    """
     tx = db.query(Transaction).filter(Transaction.id == transaction_id).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -851,15 +862,97 @@ async def forecast_cashflow(transaction_id: int, db: Session = Depends(get_db)):
         "flow_date": c.flow_date,
     } for c in cashflows]
 
+    entries = build_entries(cf_dicts, tx)
+    forecast = build_forecast(entries, horizon_days=horizon_days)
+
+    # Legacy views kept for the funding-gap / scenario sections
     timeline = build_cashflow_timeline(cf_dicts)
     gap_result = calculate_funding_gap(cf_dicts)
-    summary = generate_cashflow_summary(cf_dicts, gap_result)
 
     return {
         "transaction_id": transaction_id,
+        "as_of": forecast["as_of"],
+        "horizon_days": forecast["horizon_days"],
+        "base_currency": forecast["base_currency"],
+        "opening_balance": forecast["kpis"]["opening_balance"],
+        "opening_balance_base": forecast["kpis"]["opening_balance_base"],
+        "series": forecast["series"],
+        "kpis": forecast["kpis"],
+        "sources": forecast["sources"],
+        "assumptions": forecast["assumptions"],
+        "summary": build_forecast_summary(forecast, lang),
         "cashflow_timeline": timeline,
         "funding_gap": gap_result,
-        "summary": summary,
+        "legacy_summary": generate_cashflow_summary(cf_dicts, gap_result),
+        "illustrative_note": ILLUSTRATIVE_NOTE,
+        "boundary_declaration": BOUNDARY_DECLARATION,
+    }
+
+
+class ProductSimulationRequest(BaseModel):
+    transaction_id: int
+    product_id: int
+    horizon_days: int = 90
+    lang: str = "zh-CN"
+    params: Optional[dict] = None
+
+
+@app.post("/api/cashflow/simulate-product")
+async def simulate_financial_product(payload: ProductSimulationRequest,
+                                     db: Session = Depends(get_db)):
+    """Simulate how a recommended ICBC (Asia) product changes the forecast."""
+    tx = db.query(Transaction).filter(Transaction.id == payload.transaction_id).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    product = db.query(Product).filter(Product.id == payload.product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    cashflows = db.query(CashflowItem).filter(
+        CashflowItem.transaction_id == payload.transaction_id,
+        CashflowItem.scenario_id.is_(None)
+    ).all()
+    cf_dicts = [{
+        "flow_type": c.flow_type,
+        "description": c.description,
+        "currency": c.currency,
+        "amount": c.amount,
+        "flow_date": c.flow_date,
+    } for c in cashflows]
+
+    entries = build_entries(cf_dicts, tx)
+    forecast = build_forecast(entries, horizon_days=payload.horizon_days)
+
+    recommendation = db.query(Recommendation).filter(
+        Recommendation.transaction_id == payload.transaction_id,
+        Recommendation.product_id == payload.product_id,
+    ).order_by(Recommendation.id.desc()).first()
+
+    simulation = simulate_product(
+        product, recommendation, tx, entries, forecast,
+        params=payload.params, horizon_days=payload.horizon_days,
+        lang=payload.lang,
+    )
+
+    return {
+        "transaction_id": payload.transaction_id,
+        "product": {
+            "id": product.id,
+            "product_code": product.product_code,
+            "product_name": _localized_product_name(product, payload.lang),
+            "product_name_en": product.product_name,
+            "product_name_cn": product.product_name_cn,
+            "product_name_tw": product.product_name_tw,
+            "category": product.category,
+            "simulation_type": simulation["simulation_type"],
+        },
+        "base": {
+            "as_of": forecast["as_of"],
+            "horizon_days": forecast["horizon_days"],
+            "base_currency": forecast["base_currency"],
+            "kpis": forecast["kpis"],
+        },
+        "simulation": simulation,
         "illustrative_note": ILLUSTRATIVE_NOTE,
         "boundary_declaration": BOUNDARY_DECLARATION,
     }
